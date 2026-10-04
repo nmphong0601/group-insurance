@@ -19,7 +19,9 @@ import vn.com.group.insurance.proposal.service.ProposalService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Service implementation managing business logic across SQL Server (Proposal) and DB2 (Legacy Policy) databases.
@@ -68,7 +70,7 @@ public class ProposalServiceImpl implements ProposalService {
     public ProposalResponse getProposalById(Long id) {
         log.debug("Fetching proposal by ID: {}", id);
         // Uses BatchReadableRepository.findById(id) via DbRepository
-        ProposalEntity entity = proposalRepository.findById(id)
+        ProposalEntity entity = Optional.of(proposalRepository.findOne(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Proposal", id));
         return ProposalResponse.fromEntity(entity);
     }
@@ -87,7 +89,10 @@ public class ProposalServiceImpl implements ProposalService {
     public List<ProposalResponse> getAllProposals() {
         log.debug("Scanning all proposals from SQL Server");
         // Uses ScannableRepository.findAll() via DbRepository
-        return proposalRepository.findAll().stream()
+        List<ProposalEntity> list = StreamSupport
+                .stream(proposalRepository.findAll().spliterator(), false)
+                .toList();
+        return list.stream()
                 .map(ProposalResponse::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -96,7 +101,7 @@ public class ProposalServiceImpl implements ProposalService {
     @Transactional(transactionManager = "sqlServerTransactionManager")
     public ProposalResponse updateProposal(Long id, ProposalUpdateRequest request) {
         log.info("Updating proposal with ID: {}", id);
-        ProposalEntity entity = proposalRepository.findById(id)
+        ProposalEntity entity = Optional.of(proposalRepository.findOne(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Proposal", id));
 
         if (request.getCustomerName() != null) {
@@ -127,11 +132,11 @@ public class ProposalServiceImpl implements ProposalService {
     @Transactional(transactionManager = "sqlServerTransactionManager")
     public void deleteProposal(Long id) {
         log.info("Deleting proposal with ID: {}", id);
-        if (!proposalRepository.existsById(id)) {
+        if (!proposalRepository.exists(id)) {
             throw new ResourceNotFoundException("Proposal", id);
         }
         // Uses BatchWritableRepository.deleteById(id) via DbRepository
-        proposalRepository.deleteById(id);
+        proposalRepository.delete(id);
     }
 
     @Override
@@ -153,7 +158,9 @@ public class ProposalServiceImpl implements ProposalService {
         }
 
         // Uses BatchWritableRepository.saveAll(entities) via DbRepository
-        List<ProposalEntity> savedEntities = proposalRepository.saveAll(entities);
+        // List<ProposalEntity> savedEntities = proposalRepository.save(entities);
+        proposalRepository.save(entities);
+        List<ProposalEntity> savedEntities = entities.stream().toList();
         return savedEntities.stream()
                 .map(ProposalResponse::fromEntity)
                 .collect(Collectors.toList());
@@ -168,7 +175,7 @@ public class ProposalServiceImpl implements ProposalService {
     public PolicyRecordDto getLegacyPolicyByNumber(String policyNumber) {
         log.debug("Querying IBM DB2 for policyNumber: {}", policyNumber);
         // Uses BatchReadableRepository.findById(id) via DbRepository
-        PolicyRecordEntity policy = policyRecordRepository.findById(policyNumber)
+        PolicyRecordEntity policy = Optional.of(policyRecordRepository.findOne(policyNumber))
                 .orElseThrow(() -> new ResourceNotFoundException("Legacy Policy", policyNumber));
         return PolicyRecordDto.fromEntity(policy);
     }
@@ -188,11 +195,11 @@ public class ProposalServiceImpl implements ProposalService {
         log.info("Linking proposal ID {} with DB2 legacy policy {}", proposalId, policyNumber);
 
         // 1. Fetch proposal from SQL Server
-        ProposalEntity proposal = proposalRepository.findById(proposalId)
+        ProposalEntity proposal = Optional.of(proposalRepository.findOne(proposalId))
                 .orElseThrow(() -> new ResourceNotFoundException("Proposal", proposalId));
 
         // 2. Query legacy policy from IBM DB2
-        PolicyRecordEntity policy = policyRecordRepository.findById(policyNumber)
+        PolicyRecordEntity policy = Optional.of(policyRecordRepository.findOne(policyNumber))
                 .orElseThrow(() -> new ResourceNotFoundException("Legacy Policy", policyNumber));
 
         // 3. Validate customer code match across SQL Server and DB2

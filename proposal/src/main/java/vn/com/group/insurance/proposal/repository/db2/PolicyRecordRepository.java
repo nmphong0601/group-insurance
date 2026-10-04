@@ -1,6 +1,6 @@
 package vn.com.group.insurance.proposal.repository.db2;
 
-import jp.xet.sparwings.spring.data.repository.DbRepository;
+import vn.com.group.insurance.common.repository.DbRepository;
 import org.springframework.stereotype.Repository;
 import vn.com.group.insurance.proposal.entity.db2.PolicyRecordEntity;
 

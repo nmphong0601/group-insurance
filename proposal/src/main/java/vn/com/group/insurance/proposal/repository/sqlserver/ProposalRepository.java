@@ -1,7 +1,7 @@
 package vn.com.group.insurance.proposal.repository.sqlserver;
 
-import jp.xet.sparwings.spring.data.repository.DbRepository;
 import org.springframework.stereotype.Repository;
+import vn.com.group.insurance.common.repository.DbRepository;
 import vn.com.group.insurance.proposal.entity.sqlserver.ProposalEntity;
 
 import java.util.List;

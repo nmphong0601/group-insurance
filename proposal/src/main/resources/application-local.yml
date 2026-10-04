@@ -2,6 +2,7 @@
 spring:
   datasource:
     sqlserver:
+      jndi-name: java:comp/env/jdbc/SqlServerDb
       url: jdbc:h2:mem:sqlserver_proposal_db;DB_CLOSE_DELAY=-1;MODE=MSSQLServer
       username: sa
       password: ""
@@ -12,6 +13,7 @@ spring:
         maximum-pool-size: 5
 
     db2:
+      jndi-name: java:comp/env/jdbc/Db2Db
       url: jdbc:h2:mem:db2_policy_db;DB_CLOSE_DELAY=-1;MODE=DB2
       username: sa
       password: ""

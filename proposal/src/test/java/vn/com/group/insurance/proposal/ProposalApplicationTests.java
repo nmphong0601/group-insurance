@@ -16,6 +16,8 @@ import vn.com.group.insurance.proposal.service.ProposalService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -56,12 +58,14 @@ class ProposalApplicationTests {
         assertThat(saved.getId()).isNotNull();
 
         // BatchReadableRepository.findById
-        ProposalEntity found = proposalRepository.findById(saved.getId()).orElse(null);
+        ProposalEntity found = Optional.of(proposalRepository.findOne(saved.getId())).orElse(null);
         assertThat(found).isNotNull();
         assertThat(found.getCustomerName()).isEqualTo("Nguyen Van A");
 
         // ScannableRepository.findAll
-        List<ProposalEntity> all = proposalRepository.findAll();
+        List<ProposalEntity> all = StreamSupport
+                .stream(proposalRepository.findAll().spliterator(), false)
+                .toList();
         assertThat(all).isNotEmpty();
     }
 
@@ -81,7 +85,7 @@ class ProposalApplicationTests {
         policyRecordRepository.save(policy);
 
         // BatchReadableRepository.findById on DB2
-        PolicyRecordEntity found = policyRecordRepository.findById("POL-DB2-9999").orElse(null);
+        PolicyRecordEntity found = Optional.of(policyRecordRepository.findOne("POL-DB2-9999")).orElse(null);
         assertThat(found).isNotNull();
         assertThat(found.getProductType()).isEqualTo("HEALTH-CARE");
     }

@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # Primary Datasource: Microsoft SQL Server (Proposal DB)
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver-test
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "YourStrong@Passw0rd"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      # Ensures the server is ready to accept connections before the init script runs
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourStrong@Passw0rd' -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Ephemeral service to automatically create the 'ProposalDb' database
+  sqlserver-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver-init
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    command: /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "YourStrong@Passw0rd" -C -Q "IF DB_ID('ProposalDb') IS NULL CREATE DATABASE ProposalDb;"
+
+  # Secondary Datasource: IBM DB2 (Legacy Policy DB)
+  db2:
+    image: icr.io/db2_community/db2:latest
+    container_name: db2-test
+    privileged: true # DB2 often requires elevated privileges to manage memory and namespaces
+    environment:
+      LICENSE: "accept"
+      DB2INSTANCE: "db2inst1"
+      DB2INST1_PASSWORD: "db2password"
+      DBNAME: "POLICYDB"
+    ports:
+      - "50000:50000"
+    volumes:
+      - db2-data:/database
+
+volumes:
+  sqlserver-data:
+  db2-data:

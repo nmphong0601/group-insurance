@@ -16,6 +16,7 @@ spring:
   datasource:
     # Primary Datasource: Microsoft SQL Server (Proposal DB)
     sqlserver:
+      jndi-name: java:comp/env/jdbc/SqlServerDb
       url: ${SQLSERVER_URL:jdbc:sqlserver://localhost:1433;databaseName=ProposalDb;encrypt=false;trustServerCertificate=true}
       username: ${SQLSERVER_USERNAME:sa}
       password: ${SQLSERVER_PASSWORD:YourStrong@Passw0rd}
@@ -31,6 +32,7 @@ spring:
 
     # Secondary Datasource: IBM DB2 (Legacy Policy DB)
     db2:
+      jndi-name: java:comp/env/jdbc/Db2Db
       url: ${DB2_URL:jdbc:db2://localhost:50000/POLICYDB}
       username: ${DB2_USERNAME:db2inst1}
       password: ${DB2_PASSWORD:db2password}

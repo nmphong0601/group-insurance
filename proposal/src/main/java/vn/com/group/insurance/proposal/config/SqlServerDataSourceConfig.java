@@ -15,6 +15,7 @@ import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
+import vn.com.group.insurance.common.support.DbRepositoryFactoryBean;
 
 import javax.sql.DataSource;
 import java.util.HashMap;
@@ -30,7 +31,8 @@ import java.util.Map;
 @EnableJpaRepositories(
         basePackages = "vn.com.group.insurance.proposal.repository.sqlserver",
         entityManagerFactoryRef = "sqlServerEntityManagerFactory",
-        transactionManagerRef = "sqlServerTransactionManager"
+        transactionManagerRef = "sqlServerTransactionManager",
+        repositoryFactoryBeanClass = DbRepositoryFactoryBean.class
 )
 public class SqlServerDataSourceConfig {
 

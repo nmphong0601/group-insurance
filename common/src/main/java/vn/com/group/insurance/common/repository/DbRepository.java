@@ -1,5 +1,8 @@
-package jp.xet.sparwings.spring.data.repository;
+package vn.com.group.insurance.common.repository;
 
+import jp.xet.sparwings.spring.data.repository.BatchReadableRepository;
+import jp.xet.sparwings.spring.data.repository.BatchWritableRepository;
+import jp.xet.sparwings.spring.data.repository.ScannableRepository;
 import org.springframework.data.repository.NoRepositoryBean;
 
 import java.io.Serializable;
@@ -14,6 +17,6 @@ import java.io.Serializable;
 @NoRepositoryBean
 public interface DbRepository<E, ID extends Serializable>
         extends ScannableRepository<E, ID>,
-                BatchReadableRepository<E, ID>,
-                BatchWritableRepository<E, ID> {
+        BatchReadableRepository<E, ID>,
+        BatchWritableRepository<E, ID> {
 }
