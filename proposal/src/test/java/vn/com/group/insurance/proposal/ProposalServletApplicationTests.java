@@ -22,7 +22,7 @@ import java.util.stream.StreamSupport;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-class ProposalApplicationTests {
+class ProposalServletApplicationTests {
 
     @Autowired
     private ProposalRepository proposalRepository;
