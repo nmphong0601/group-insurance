@@ -20,7 +20,7 @@
 
     <modules>
         <module>common</module>
-        <module>proposal</module>
+        <module>api</module>
     </modules>
 
     <properties>

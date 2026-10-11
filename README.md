@@ -98,15 +98,15 @@ Spring Data JPA auto-implements all these methods at runtime on any repository i
 
 * **Primary Datasource (SQL Server)**:
   * Configured in [`SqlServerDataSourceConfig`](file:///D:/Development/Projects/group-insurance/proposal/src/main/java/vn/com/group/insurance/proposal/config/SqlServerDataSourceConfig.java)
-  * Base packages scanned: `vn.com.group.insurance.proposal.repository.sqlserver`
-  * Entity packages scanned: `vn.com.group.insurance.proposal.entity.sqlserver`
+  * Base packages scanned: `vn.com.group.insurance.api.repository.sqlserver`
+  * Entity packages scanned: `vn.com.group.insurance.api.entity.sqlserver`
   * Uses HikariCP: `SqlServerHikariPool`
   * Transaction Manager: `sqlServerTransactionManager` (Primary)
 
 * **Secondary Datasource (IBM DB2)**:
   * Configured in [`Db2DataSourceConfig`](file:///D:/Development/Projects/group-insurance/proposal/src/main/java/vn/com/group/insurance/proposal/config/Db2DataSourceConfig.java)
-  * Base packages scanned: `vn.com.group.insurance.proposal.repository.db2`
-  * Entity packages scanned: `vn.com.group.insurance.proposal.entity.db2`
+  * Base packages scanned: `vn.com.group.insurance.api.repository.db2`
+  * Entity packages scanned: `vn.com.group.insurance.api.entity.db2`
   * Uses HikariCP: `Db2HikariPool`
   * Transaction Manager: `db2TransactionManager`
 
@@ -126,10 +126,10 @@ The application can be run directly using the `main` method in [`ProposalApplica
 3. **Command Line Standalone**:
    ```bash
    # Run with live SQL Server & DB2 configured in application.yml
-   .\mvnw.cmd spring-boot:run -pl proposal
+   .\mvnw.cmd spring-boot:run -pl api
 
    # Or run with local profile for offline development
-   java "-Dspring.profiles.active=local" -jar proposal/target/proposal.war
+   java "-Dspring.profiles.active=local" -jar api/target/api.war
    ```
 
 ### Mode B: Deploy to Apache Tomcat 10.1.0
@@ -141,14 +141,14 @@ Apache Tomcat 10.1.x implements Jakarta EE 10 (`jakarta.servlet.*`), which match
    .\mvnw.cmd clean package
    ```
 2. The generated WAR is located at:
-   `proposal/target/proposal.war`
+   `proposal/target/api.war`
 3. Copy `proposal.war` into the Tomcat `webapps/` directory:
    ```bash
-   cp proposal/target/proposal.war /path/to/apache-tomcat-10.1.0/webapps/
+   cp proposal/target/api.war /path/to/apache-tomcat-10.1.0/webapps/
    ```
 4. Start Apache Tomcat (`bin/startup.bat` or `bin/startup.sh`).
 5. The application will be accessible at:
-   `http://localhost:8080/proposal/api/v1/proposals`
+   `http://localhost:8080/api/v1/proposals`
 
 ---
 
