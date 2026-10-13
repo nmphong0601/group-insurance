@@ -42,7 +42,7 @@ public class ExcelController {
             return ResponseEntity.badRequest().body("File không được để trống!");
         }
         try {
-            List<PackageDto> packages = excelService.parseExcel(file);
+            List<PackageDto> packages = excelService.parseExcelDynamic(file);
             return ResponseEntity.ok(packages);
         } catch (Exception e) {
             e.printStackTrace();

@@ -13,5 +13,6 @@ import java.util.Map;
 public interface ExcelService {
     List<Map<String, String>> readDynamicExcel(MultipartFile file) throws Exception;
     List<Map<String, String>> readNormalExcelWithHeader(MultipartFile file) throws IOException;
-    List<PackageDto> parseExcel(MultipartFile file) throws Exception;
+//    List<PackageDto> parseExcel(MultipartFile file) throws Exception;
+    List<PackageDto> parseExcelDynamic(MultipartFile file) throws Exception;
 }

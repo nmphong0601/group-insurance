@@ -130,94 +130,224 @@ public class ExcelServiceImpl implements ExcelService {
         return excelData;
     }
 
-    public List<PackageDto> parseExcel(MultipartFile file) throws Exception {
+//    public List<PackageDto> parseExcel(MultipartFile file) throws Exception {
+//        List<PackageDto> packages = new ArrayList<>();
+//
+//        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+//            Sheet sheet = workbook.getSheetAt(0);
+//            Row headerRow = sheet.getRow(0);
+//
+//            if (headerRow == null) return packages;
+//
+//            int numCols = headerRow.getLastCellNum();
+//
+//            // Duyệt từng cột
+//            for (int colIndex = 1; colIndex < numCols; colIndex++) {
+//                String packageName = getCellValueAsString(headerRow.getCell(colIndex));
+//                if (packageName.isEmpty()) continue;
+//
+//                PackageDto pkg = new PackageDto();
+//                pkg.setPackageName(packageName);
+//
+//                pkg.setEmployeeGroup(getCellValueAsString(sheet.getRow(1).getCell(colIndex)));
+//                pkg.setEmployeeCount(parseInteger(getCellValueAsString(sheet.getRow(2).getCell(colIndex))));
+//                pkg.setOccupationalGroup(getCellValueAsString(sheet.getRow(3).getCell(colIndex)));
+//
+//                ProductDto currentProduct = null;
+//                ContentDto currentContent = null; // Cờ lưu trữ nội dung hiện tại đang xử lý
+//
+//                for (int rowIndex = 4; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+//                    Row row = sheet.getRow(rowIndex);
+//                    if (row == null) continue;
+//
+//                    String rowHeader = getCellValueAsString(row.getCell(0)).trim();
+//                    String cellValue = getCellValueAsString(row.getCell(colIndex)).trim();
+//
+//                    if (rowHeader.isEmpty() || rowHeader.equalsIgnoreCase("NaN")) continue;
+//
+//                    // Parse Tổng kết
+//                    if (rowHeader.equalsIgnoreCase("Tổng số tiền")) {
+//                        pkg.setTotalAmount(parseLong(cellValue));
+//                    } else if (rowHeader.contains("tiền trung bình")) {
+//                        pkg.setAverageAmount(parseLong(cellValue));
+//                    }
+//                    // Parse Sản phẩm và Nội dung
+//                    else if (rowHeader.startsWith("Gói Sản phẩm")) {
+//                        if (!rowHeader.contains("_")) {
+//                            // Tạo sản phẩm mới
+//                            if (currentProduct == null || !currentProduct.getProductName().equals(rowHeader)) {
+//                                currentProduct = new ProductDto();
+//                                currentProduct.setProductName(rowHeader);
+//                                currentProduct.setIsCheck(parseBoolean(cellValue));
+//                                pkg.getProducts().add(currentProduct);
+//                                currentContent = null; // Reset current content khi qua SP mới
+//                            } else {
+//                                // Gặp lại tên SP cũ nhưng mang giá trị tiền tệ (giống dòng 9 file gốc)
+//                                // Xử lý như một nội dung mặc định của SP
+//                                currentContent = new ContentDto();
+//                                currentContent.setContentName(rowHeader);
+//                                currentContent.setContentValue(cellValue);
+//                                currentProduct.getContents().add(currentContent);
+//                            }
+//                        } else {
+//                            // Các thuộc tính con của sản phẩm
+//                            if (rowHeader.contains("Tính Tiền dựa trên lương") || rowHeader.contains("Tính tiền")) {
+//                                currentProduct.setCalculateBasedOnSalary(parseBoolean(cellValue));
+//                            } else if (rowHeader.contains("Lương trung bình tháng")) {
+//                                currentProduct.setAverageMonthlySalary(parseLong(cellValue));
+//                            } else if (rowHeader.contains("Số tháng")) {
+//                                currentProduct.setNumberOfMonths(parseInteger(cellValue));
+//                            } else if (rowHeader.contains("Nội dung")) {
+//                                // Khởi tạo một đối tượng Content mới
+//                                currentContent = new ContentDto();
+//                                currentContent.setContentName(rowHeader);
+//                                currentContent.setContentValue(cellValue);
+//                                currentProduct.getContents().add(currentContent);
+//                            }
+//                        }
+//                    }
+//                    // Parse Quyền lợi
+//                    else if (rowHeader.startsWith("Quyền lợi")) {
+//                        BenefitDto benefit = new BenefitDto();
+//                        benefit.setBenefitName(rowHeader);
+//                        benefit.setIsCheck(parseBoolean(cellValue));
+//
+//                        if (currentProduct != null) {
+//                            if (currentContent != null) {
+//                                // Nếu đang duyệt ở bên trong một "Nội dung", add quyền lợi vào nội dung đó
+//                                currentContent.getBenefits().add(benefit);
+//                            } else {
+//                                // Nếu sản phẩm không có chia "Nội dung" (như Gói SP 1), add vào quyền lợi chung
+//                                currentProduct.getGeneralBenefits().add(benefit);
+//                            }
+//                        }
+//                    }
+//                }
+//                packages.add(pkg);
+//            }
+//        }
+//        return packages;
+//    }
+//
+//    /* ====== CÁC HÀM TIỆN ÍCH CHUYỂN ĐỔI DỮ LIỆU ====== */
+//
+//    private String getCellValueAsString(Cell cell) {
+//        if (cell == null) return "";
+//        switch (cell.getCellType()) {
+//            case STRING:
+//                return cell.getStringCellValue();
+//            case NUMERIC:
+//                // Dùng BigDecimal để tránh bị dính ký hiệu khoa học (E) hoặc số bị dư thập phân (VD: 1.0)
+//                return BigDecimal.valueOf(cell.getNumericCellValue()).toPlainString();
+//            case BOOLEAN:
+//                return String.valueOf(cell.getBooleanCellValue());
+//            default:
+//                return "";
+//        }
+//    }
+//
+//    private Boolean parseBoolean(String value) {
+//        if (value == null || value.isEmpty()) return false;
+//        String upper = value.toUpperCase();
+//        // Quản lý cả định dạng nhị phân 0/1 và dạng chữ trong excel
+//        return upper.equals("1") || upper.equals("1.0") || upper.equals("TRUE") || upper.equals("YES");
+//    }
+//
+//    private Long parseLong(String value) {
+//        if (value == null || value.isEmpty() || value.equalsIgnoreCase("NaN")) return 0L;
+//        try {
+//            return new BigDecimal(value).longValue();
+//        } catch (Exception e) {
+//            return 0L;
+//        }
+//    }
+//
+//    private Integer parseInteger(String value) {
+//        if (value == null || value.isEmpty() || value.equalsIgnoreCase("NaN")) return 0;
+//        try {
+//            return new BigDecimal(value).intValue();
+//        } catch (Exception e) {
+//            return 0;
+//        }
+//    }
+
+    @Override
+    public List<PackageDto> parseExcelDynamic(MultipartFile file) throws Exception {
         List<PackageDto> packages = new ArrayList<>();
 
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
             Row headerRow = sheet.getRow(0);
-
             if (headerRow == null) return packages;
 
             int numCols = headerRow.getLastCellNum();
 
-            // Duyệt từng cột
             for (int colIndex = 1; colIndex < numCols; colIndex++) {
-                String packageName = getCellValueAsString(headerRow.getCell(colIndex));
+                String packageName = getCellValueAsString(headerRow.getCell(colIndex)).trim();
                 if (packageName.isEmpty()) continue;
 
                 PackageDto pkg = new PackageDto();
                 pkg.setPackageName(packageName);
 
-                pkg.setEmployeeGroup(getCellValueAsString(sheet.getRow(1).getCell(colIndex)));
-                pkg.setEmployeeCount(parseInteger(getCellValueAsString(sheet.getRow(2).getCell(colIndex))));
-                pkg.setOccupationalGroup(getCellValueAsString(sheet.getRow(3).getCell(colIndex)));
-
                 ProductDto currentProduct = null;
-                ContentDto currentContent = null; // Cờ lưu trữ nội dung hiện tại đang xử lý
+                ContentDto currentContent = null;
 
-                for (int rowIndex = 4; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                     Row row = sheet.getRow(rowIndex);
                     if (row == null) continue;
 
-                    String rowHeader = getCellValueAsString(row.getCell(0)).trim();
+                    Cell labelCell = row.getCell(0);
+                    String rawLabel = getCellValueAsString(labelCell); // Lấy raw để đếm khoảng trắng
+                    String cleanLabel = rawLabel.trim();
                     String cellValue = getCellValueAsString(row.getCell(colIndex)).trim();
 
-                    if (rowHeader.isEmpty() || rowHeader.equalsIgnoreCase("NaN")) continue;
+                    if (cleanLabel.isEmpty() || cleanLabel.equalsIgnoreCase("NaN")) continue;
 
-                    // Parse Tổng kết
-                    if (rowHeader.equalsIgnoreCase("Tổng số tiền")) {
-                        pkg.setTotalAmount(parseLong(cellValue));
-                    } else if (rowHeader.contains("tiền trung bình")) {
-                        pkg.setAverageAmount(parseLong(cellValue));
-                    }
-                    // Parse Sản phẩm và Nội dung
-                    else if (rowHeader.startsWith("Gói Sản phẩm")) {
-                        if (!rowHeader.contains("_")) {
-                            // Tạo sản phẩm mới
-                            if (currentProduct == null || !currentProduct.getProductName().equals(rowHeader)) {
-                                currentProduct = new ProductDto();
-                                currentProduct.setProductName(rowHeader);
-                                currentProduct.setIsCheck(parseBoolean(cellValue));
-                                pkg.getProducts().add(currentProduct);
-                                currentContent = null; // Reset current content khi qua SP mới
-                            } else {
-                                // Gặp lại tên SP cũ nhưng mang giá trị tiền tệ (giống dòng 9 file gốc)
-                                // Xử lý như một nội dung mặc định của SP
-                                currentContent = new ContentDto();
-                                currentContent.setContentName(rowHeader);
-                                currentContent.setContentValue(cellValue);
-                                currentProduct.getContents().add(currentContent);
-                            }
+                    // Tính cấp độ thụt lề (Indentation Level)
+                    int indentLevel = countLeadingSpaces(rawLabel);
+
+                    /* LEVEL 0: THUỘC TÍNH CỦA GÓI HOẶC SẢN PHẨM MỚI (0 khoảng trắng) */
+                    if (indentLevel == 0) {
+                        // Nếu cellValue mang tính chất Boolean (True/False, 1/0) và cột trước đó có chứa nhiều hàng con
+                        // Thường thì những hàng như "Gói Sản Phẩm 1" sẽ đi liền với isCheck (1/0/True/False)
+                        if (isPotentialProductNode(cleanLabel, currentProduct)) {
+                            currentProduct = new ProductDto();
+                            currentProduct.setProductName(cleanLabel);
+                            currentProduct.setIsCheck(parseBoolean(cellValue));
+                            pkg.getProducts().add(currentProduct);
+                            currentContent = null; // reset content state
                         } else {
-                            // Các thuộc tính con của sản phẩm
-                            if (rowHeader.contains("Tính Tiền dựa trên lương") || rowHeader.contains("Tính tiền")) {
-                                currentProduct.setCalculateBasedOnSalary(parseBoolean(cellValue));
-                            } else if (rowHeader.contains("Lương trung bình tháng")) {
-                                currentProduct.setAverageMonthlySalary(parseLong(cellValue));
-                            } else if (rowHeader.contains("Số tháng")) {
-                                currentProduct.setNumberOfMonths(parseInteger(cellValue));
-                            } else if (rowHeader.contains("Nội dung")) {
-                                // Khởi tạo một đối tượng Content mới
+                            // Nếu không phải sản phẩm mới, nó là thuộc tính của Gói (Nhóm nhân viên, Tổng tiền...)
+                            pkg.getPackageAttributes().put(cleanLabel, parseDynamicValue(cellValue));
+                        }
+                    }
+                    /* LEVEL 1: THUỘC TÍNH CỦA SẢN PHẨM HOẶC KHỞI TẠO NỘI DUNG (2 khoảng trắng) */
+                    else if (indentLevel > 0 && indentLevel <= 2) {
+                        if (currentProduct != null) {
+                            // Một số file excel dùng chung format tên cột, ta thử đoán xem nó là Content hay Attribute
+                            // Nếu cleanLabel giống hệt tên currentProduct (như Gói SP 1 lặp lại)
+                            // Hoặc nó là cấu trúc Nội dung
+                            if (cleanLabel.equals(currentProduct.getProductName()) || cleanLabel.toLowerCase().contains("nội dung")) {
                                 currentContent = new ContentDto();
-                                currentContent.setContentName(rowHeader);
+                                currentContent.setContentName(cleanLabel);
                                 currentContent.setContentValue(cellValue);
                                 currentProduct.getContents().add(currentContent);
+                            } else {
+                                // Nếu không, nó là thuộc tính con (Số tháng, Tính tiền dựa trên lương...)
+                                currentProduct.getAttributes().put(cleanLabel, parseDynamicValue(cellValue));
                             }
                         }
                     }
-                    // Parse Quyền lợi
-                    else if (rowHeader.startsWith("Quyền lợi")) {
+                    /* LEVEL 2: QUYỀN LỢI (4 khoảng trắng trở lên) */
+                    else if (indentLevel > 2) {
                         BenefitDto benefit = new BenefitDto();
-                        benefit.setBenefitName(rowHeader);
+                        benefit.setBenefitName(cleanLabel);
                         benefit.setIsCheck(parseBoolean(cellValue));
 
                         if (currentProduct != null) {
                             if (currentContent != null) {
-                                // Nếu đang duyệt ở bên trong một "Nội dung", add quyền lợi vào nội dung đó
                                 currentContent.getBenefits().add(benefit);
                             } else {
-                                // Nếu sản phẩm không có chia "Nội dung" (như Gói SP 1), add vào quyền lợi chung
                                 currentProduct.getGeneralBenefits().add(benefit);
                             }
                         }
@@ -229,46 +359,59 @@ public class ExcelServiceImpl implements ExcelService {
         return packages;
     }
 
-    /* ====== CÁC HÀM TIỆN ÍCH CHUYỂN ĐỔI DỮ LIỆU ====== */
+    // --- Hàm đếm số khoảng trắng ở đầu chuỗi ---
+    private int countLeadingSpaces(String str) {
+        int count = 0;
+        for (char c : str.toCharArray()) {
+            if (c == ' ') count++;
+            else break;
+        }
+        return count;
+    }
 
+    // --- Logic phán đoán xem có phải node Sản Phẩm không (VD: Có con bên dưới hoặc mang tính Checkbox) ---
+    private boolean isPotentialProductNode(String label, ProductDto currentProduct) {
+        // Ta có thể đoán nó là sản phẩm nếu chưa có sản phẩm nào,
+        // hoặc label khác biệt hẳn so với các packageAttributes thông thường
+        // Logic thực tế tùy bạn định nghĩa quy ước file, ở đây ta ưu tiên cụm "Gói Sản phẩm" làm flag để khởi tạo block
+        return label.toLowerCase().contains("sản phẩm");
+    }
+
+    // --- Parse đa hình: tự nhận diện là Số nguyên, Boolean hay Chuỗi ---
+    private Object parseDynamicValue(String value) {
+        if (value == null || value.isEmpty()) return null;
+
+        // Thử xem có phải boolean ko
+        String upper = value.toUpperCase();
+        if (upper.equals("TRUE") || upper.equals("FALSE")) return Boolean.parseBoolean(upper);
+
+        // Thử parse số
+        try {
+            BigDecimal bd = new BigDecimal(value);
+            // Trả về Long nếu là số nguyên, Double nếu là số thập phân
+            if (bd.scale() <= 0) return bd.longValueExact();
+            else return bd.doubleValue();
+        } catch (Exception e) {
+            // Nếu không phải số, trả về string ban đầu
+            return value;
+        }
+    }
+
+    // (Giữ lại hàm getCellValueAsString và parseBoolean từ code cũ)
     private String getCellValueAsString(Cell cell) {
         if (cell == null) return "";
-        switch (cell.getCellType()) {
-            case STRING:
-                return cell.getStringCellValue();
-            case NUMERIC:
-                // Dùng BigDecimal để tránh bị dính ký hiệu khoa học (E) hoặc số bị dư thập phân (VD: 1.0)
-                return BigDecimal.valueOf(cell.getNumericCellValue()).toPlainString();
-            case BOOLEAN:
-                return String.valueOf(cell.getBooleanCellValue());
-            default:
-                return "";
-        }
+        return switch (cell.getCellType()) {
+            case STRING -> cell.getStringCellValue();
+            case NUMERIC -> BigDecimal.valueOf(cell.getNumericCellValue()).toPlainString();
+            case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
+            default -> "";
+        };
     }
 
     private Boolean parseBoolean(String value) {
         if (value == null || value.isEmpty()) return false;
         String upper = value.toUpperCase();
-        // Quản lý cả định dạng nhị phân 0/1 và dạng chữ trong excel
         return upper.equals("1") || upper.equals("1.0") || upper.equals("TRUE") || upper.equals("YES");
-    }
-
-    private Long parseLong(String value) {
-        if (value == null || value.isEmpty() || value.equalsIgnoreCase("NaN")) return 0L;
-        try {
-            return new BigDecimal(value).longValue();
-        } catch (Exception e) {
-            return 0L;
-        }
-    }
-
-    private Integer parseInteger(String value) {
-        if (value == null || value.isEmpty() || value.equalsIgnoreCase("NaN")) return 0;
-        try {
-            return new BigDecimal(value).intValue();
-        } catch (Exception e) {
-            return 0;
-        }
     }
 
     // Helper method updated to evaluate formulas
