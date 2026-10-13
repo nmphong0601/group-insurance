@@ -5,10 +5,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import vn.com.group.insurance.api.dto.BenefitDto;
+import vn.com.group.insurance.api.dto.ContentDto;
+import vn.com.group.insurance.api.dto.PackageDto;
+import vn.com.group.insurance.api.dto.ProductDto;
 import vn.com.group.insurance.api.service.ExcelService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.util.*;
 
 /**
@@ -123,6 +128,147 @@ public class ExcelServiceImpl implements ExcelService {
                 }
         }
         return excelData;
+    }
+
+    public List<PackageDto> parseExcel(MultipartFile file) throws Exception {
+        List<PackageDto> packages = new ArrayList<>();
+
+        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+            Sheet sheet = workbook.getSheetAt(0);
+            Row headerRow = sheet.getRow(0);
+
+            if (headerRow == null) return packages;
+
+            int numCols = headerRow.getLastCellNum();
+
+            // Duyệt từng cột
+            for (int colIndex = 1; colIndex < numCols; colIndex++) {
+                String packageName = getCellValueAsString(headerRow.getCell(colIndex));
+                if (packageName.isEmpty()) continue;
+
+                PackageDto pkg = new PackageDto();
+                pkg.setPackageName(packageName);
+
+                pkg.setEmployeeGroup(getCellValueAsString(sheet.getRow(1).getCell(colIndex)));
+                pkg.setEmployeeCount(parseInteger(getCellValueAsString(sheet.getRow(2).getCell(colIndex))));
+                pkg.setOccupationalGroup(getCellValueAsString(sheet.getRow(3).getCell(colIndex)));
+
+                ProductDto currentProduct = null;
+                ContentDto currentContent = null; // Cờ lưu trữ nội dung hiện tại đang xử lý
+
+                for (int rowIndex = 4; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                    Row row = sheet.getRow(rowIndex);
+                    if (row == null) continue;
+
+                    String rowHeader = getCellValueAsString(row.getCell(0)).trim();
+                    String cellValue = getCellValueAsString(row.getCell(colIndex)).trim();
+
+                    if (rowHeader.isEmpty() || rowHeader.equalsIgnoreCase("NaN")) continue;
+
+                    // Parse Tổng kết
+                    if (rowHeader.equalsIgnoreCase("Tổng số tiền")) {
+                        pkg.setTotalAmount(parseLong(cellValue));
+                    } else if (rowHeader.contains("tiền trung bình")) {
+                        pkg.setAverageAmount(parseLong(cellValue));
+                    }
+                    // Parse Sản phẩm và Nội dung
+                    else if (rowHeader.startsWith("Gói Sản phẩm")) {
+                        if (!rowHeader.contains("_")) {
+                            // Tạo sản phẩm mới
+                            if (currentProduct == null || !currentProduct.getProductName().equals(rowHeader)) {
+                                currentProduct = new ProductDto();
+                                currentProduct.setProductName(rowHeader);
+                                currentProduct.setIsCheck(parseBoolean(cellValue));
+                                pkg.getProducts().add(currentProduct);
+                                currentContent = null; // Reset current content khi qua SP mới
+                            } else {
+                                // Gặp lại tên SP cũ nhưng mang giá trị tiền tệ (giống dòng 9 file gốc)
+                                // Xử lý như một nội dung mặc định của SP
+                                currentContent = new ContentDto();
+                                currentContent.setContentName(rowHeader);
+                                currentContent.setContentValue(cellValue);
+                                currentProduct.getContents().add(currentContent);
+                            }
+                        } else {
+                            // Các thuộc tính con của sản phẩm
+                            if (rowHeader.contains("Tính Tiền dựa trên lương") || rowHeader.contains("Tính tiền")) {
+                                currentProduct.setCalculateBasedOnSalary(parseBoolean(cellValue));
+                            } else if (rowHeader.contains("Lương trung bình tháng")) {
+                                currentProduct.setAverageMonthlySalary(parseLong(cellValue));
+                            } else if (rowHeader.contains("Số tháng")) {
+                                currentProduct.setNumberOfMonths(parseInteger(cellValue));
+                            } else if (rowHeader.contains("Nội dung")) {
+                                // Khởi tạo một đối tượng Content mới
+                                currentContent = new ContentDto();
+                                currentContent.setContentName(rowHeader);
+                                currentContent.setContentValue(cellValue);
+                                currentProduct.getContents().add(currentContent);
+                            }
+                        }
+                    }
+                    // Parse Quyền lợi
+                    else if (rowHeader.startsWith("Quyền lợi")) {
+                        BenefitDto benefit = new BenefitDto();
+                        benefit.setBenefitName(rowHeader);
+                        benefit.setIsCheck(parseBoolean(cellValue));
+
+                        if (currentProduct != null) {
+                            if (currentContent != null) {
+                                // Nếu đang duyệt ở bên trong một "Nội dung", add quyền lợi vào nội dung đó
+                                currentContent.getBenefits().add(benefit);
+                            } else {
+                                // Nếu sản phẩm không có chia "Nội dung" (như Gói SP 1), add vào quyền lợi chung
+                                currentProduct.getGeneralBenefits().add(benefit);
+                            }
+                        }
+                    }
+                }
+                packages.add(pkg);
+            }
+        }
+        return packages;
+    }
+
+    /* ====== CÁC HÀM TIỆN ÍCH CHUYỂN ĐỔI DỮ LIỆU ====== */
+
+    private String getCellValueAsString(Cell cell) {
+        if (cell == null) return "";
+        switch (cell.getCellType()) {
+            case STRING:
+                return cell.getStringCellValue();
+            case NUMERIC:
+                // Dùng BigDecimal để tránh bị dính ký hiệu khoa học (E) hoặc số bị dư thập phân (VD: 1.0)
+                return BigDecimal.valueOf(cell.getNumericCellValue()).toPlainString();
+            case BOOLEAN:
+                return String.valueOf(cell.getBooleanCellValue());
+            default:
+                return "";
+        }
+    }
+
+    private Boolean parseBoolean(String value) {
+        if (value == null || value.isEmpty()) return false;
+        String upper = value.toUpperCase();
+        // Quản lý cả định dạng nhị phân 0/1 và dạng chữ trong excel
+        return upper.equals("1") || upper.equals("1.0") || upper.equals("TRUE") || upper.equals("YES");
+    }
+
+    private Long parseLong(String value) {
+        if (value == null || value.isEmpty() || value.equalsIgnoreCase("NaN")) return 0L;
+        try {
+            return new BigDecimal(value).longValue();
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
+    private Integer parseInteger(String value) {
+        if (value == null || value.isEmpty() || value.equalsIgnoreCase("NaN")) return 0;
+        try {
+            return new BigDecimal(value).intValue();
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     // Helper method updated to evaluate formulas

@@ -22,17 +22,31 @@ public class ExcelController {
         this.excelService = excelService;
     }
 
-    @PostMapping("/upload")
-    public ResponseEntity<?> uploadExcel(@RequestParam("file") MultipartFile file) {
-        if (file.isEmpty()) {
-            return ResponseEntity.badRequest().body("Please upload an Excel file.");
-        }
+//    @PostMapping("/upload")
+//    public ResponseEntity<?> uploadExcel(@RequestParam("file") MultipartFile file) {
+//        if (file.isEmpty()) {
+//            return ResponseEntity.badRequest().body("Please upload an Excel file.");
+//        }
+//
+//        try {
+//            List<Map<String, String>> result = excelService.readDynamicExcel(file);
+//            return ResponseEntity.ok(result);
+//        } catch (Exception e) {
+//            return ResponseEntity.internalServerError().body("Failed to read Excel file: " + e.getMessage());
+//        }
+//    }
 
+    @PostMapping("/upload")
+    public ResponseEntity<?> uploadExcelFile(@RequestParam("file") MultipartFile file) {
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body("File không được để trống!");
+        }
         try {
-            List<Map<String, String>> result = excelService.readDynamicExcel(file);
-            return ResponseEntity.ok(result);
+            List<PackageDto> packages = excelService.parseExcel(file);
+            return ResponseEntity.ok(packages);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Failed to read Excel file: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Lỗi xử lý file: " + e.getMessage());
         }
     }
 }
