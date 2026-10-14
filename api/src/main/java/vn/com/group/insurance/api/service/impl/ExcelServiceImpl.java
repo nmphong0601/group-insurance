@@ -9,6 +9,7 @@ import vn.com.group.insurance.api.dto.BenefitDto;
 import vn.com.group.insurance.api.dto.ContentDto;
 import vn.com.group.insurance.api.dto.PackageDto;
 import vn.com.group.insurance.api.dto.ProductDto;
+import vn.com.group.insurance.api.mapper.ExcelTreeMapper;
 import vn.com.group.insurance.api.service.ExcelService;
 
 import java.io.IOException;
@@ -282,6 +283,7 @@ public class ExcelServiceImpl implements ExcelService {
 
             int numCols = headerRow.getLastCellNum();
 
+            // Duyệt từng cột (từng Gói)
             for (int colIndex = 1; colIndex < numCols; colIndex++) {
                 String packageName = getCellValueAsString(headerRow.getCell(colIndex)).trim();
                 if (packageName.isEmpty()) continue;
@@ -290,66 +292,67 @@ public class ExcelServiceImpl implements ExcelService {
                 pkg.setPackageName(packageName);
 
                 ProductDto currentProduct = null;
-                ContentDto currentContent = null;
+                BenefitDto currentBenefit = null;
 
+                // Bắt đầu duyệt từ dòng 1
                 for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                     Row row = sheet.getRow(rowIndex);
                     if (row == null) continue;
 
-                    Cell labelCell = row.getCell(0);
-                    String rawLabel = getCellValueAsString(labelCell); // Lấy raw để đếm khoảng trắng
-                    String cleanLabel = rawLabel.trim();
+                    String rawLabel = getCellValueAsString(row.getCell(0)).trim();
+                    if (rawLabel.isEmpty() || rawLabel.equalsIgnoreCase("NaN")) continue;
+
                     String cellValue = getCellValueAsString(row.getCell(colIndex)).trim();
 
-                    if (cleanLabel.isEmpty() || cleanLabel.equalsIgnoreCase("NaN")) continue;
+                    // LOGIC CHÍNH: Lấy dòng n+1 để kiểm tra xem dòng n có phải là Node Cha không
+                    String nextLabel = getNextValidLabel(sheet, rowIndex);
+                    boolean isParentNode = !nextLabel.isEmpty() && nextLabel.startsWith(rawLabel + "_");
 
-                    // Tính cấp độ thụt lề (Indentation Level)
-                    int indentLevel = countLeadingSpaces(rawLabel);
+                    // Phân tách cấp độ bằng dấu "_"
+                    String[] parts = rawLabel.split("_");
+                    int level = parts.length;
 
-                    /* LEVEL 0: THUỘC TÍNH CỦA GÓI HOẶC SẢN PHẨM MỚI (0 khoảng trắng) */
-                    if (indentLevel == 0) {
-                        // Nếu cellValue mang tính chất Boolean (True/False, 1/0) và cột trước đó có chứa nhiều hàng con
-                        // Thường thì những hàng như "Gói Sản Phẩm 1" sẽ đi liền với isCheck (1/0/True/False)
-                        if (isPotentialProductNode(cleanLabel, currentProduct)) {
+                    /* CẤP 1: GÓI SẢN PHẨM HOẶC THUỘC TÍNH CỦA GÓI */
+                    if (level == 1) {
+                        if (isParentNode) {
+                            // Nếu có chứa con (Ví dụ n+1 là "Sản phẩm 01_Thuộc tính") -> Đây là Product
                             currentProduct = new ProductDto();
-                            currentProduct.setProductName(cleanLabel);
+                            currentProduct.setProductName(rawLabel);
                             currentProduct.setIsCheck(parseBoolean(cellValue));
                             pkg.getProducts().add(currentProduct);
-                            currentContent = null; // reset content state
+
+                            currentBenefit = null; // Reset lại Content khi sang Product mới
                         } else {
-                            // Nếu không phải sản phẩm mới, nó là thuộc tính của Gói (Nhóm nhân viên, Tổng tiền...)
-                            pkg.getPackageAttributes().put(cleanLabel, parseDynamicValue(cellValue));
+                            // Không có con (Ví dụ n+1 là "Nhóm nghề") -> Đây là Thuộc tính ngang hàng của Gói
+                            pkg.getPackageAttributes().put(rawLabel, parseDynamicValue(cellValue));
                         }
                     }
-                    /* LEVEL 1: THUỘC TÍNH CỦA SẢN PHẨM HOẶC KHỞI TẠO NỘI DUNG (2 khoảng trắng) */
-                    else if (indentLevel > 0 && indentLevel <= 2) {
-                        if (currentProduct != null) {
-                            // Một số file excel dùng chung format tên cột, ta thử đoán xem nó là Content hay Attribute
-                            // Nếu cleanLabel giống hệt tên currentProduct (như Gói SP 1 lặp lại)
-                            // Hoặc nó là cấu trúc Nội dung
-                            if (cleanLabel.equals(currentProduct.getProductName()) || cleanLabel.toLowerCase().contains("nội dung")) {
-                                currentContent = new ContentDto();
-                                currentContent.setContentName(cleanLabel);
-                                currentContent.setContentValue(cellValue);
-                                currentProduct.getContents().add(currentContent);
-                            } else {
-                                // Nếu không, nó là thuộc tính con (Số tháng, Tính tiền dựa trên lương...)
-                                currentProduct.getAttributes().put(cleanLabel, parseDynamicValue(cellValue));
-                            }
-                        }
-                    }
-                    /* LEVEL 2: QUYỀN LỢI (4 khoảng trắng trở lên) */
-                    else if (indentLevel > 2) {
-                        BenefitDto benefit = new BenefitDto();
-                        benefit.setBenefitName(cleanLabel);
-                        benefit.setIsCheck(parseBoolean(cellValue));
+                    /* CẤP 2: NỘI DUNG/QUYỀN LỢI CHÍNH HOẶC THUỘC TÍNH CỦA SẢN PHẨM */
+                    else if (level == 2) {
+                        String itemName = parts[1].trim();
 
                         if (currentProduct != null) {
-                            if (currentContent != null) {
-                                currentContent.getBenefits().add(benefit);
+                            if (isParentNode) {
+                                // Nếu có chứa con -> Đây là Nhóm Nội Dung / Quyền Lợi Chính
+                                currentBenefit = new BenefitDto();
+                                currentBenefit.setBenefitName(itemName);
+                                currentBenefit.setBenefitValue(cellValue);
+                                currentProduct.getMainBenefits().add(currentBenefit);
                             } else {
-                                currentProduct.getGeneralBenefits().add(benefit);
+                                // Không có chứa con -> Đây chỉ là một Thuộc tính của Sản phẩm
+                                currentProduct.getProductAttributes().put(itemName, parseDynamicValue(cellValue));
                             }
+                        }
+                    }
+                    /* CẤP 3: QUYỀN LỢI PHỤ (NODE LÁ) */
+                    else if (level == 3) {
+                        String subItemName = parts[2].trim();
+
+                        if (currentBenefit != null) {
+                            BenefitDto benefit = new BenefitDto();
+                            benefit.setBenefitName(subItemName);
+                            benefit.setIsCheck(parseBoolean(cellValue));
+                            currentBenefit.getChildBenefits().add(benefit);
                         }
                     }
                 }
@@ -359,45 +362,101 @@ public class ExcelServiceImpl implements ExcelService {
         return packages;
     }
 
-    // --- Hàm đếm số khoảng trắng ở đầu chuỗi ---
-    private int countLeadingSpaces(String str) {
-        int count = 0;
-        for (char c : str.toCharArray()) {
-            if (c == ' ') count++;
-            else break;
+    /**
+     * Hàm quét tới dòng tiếp theo (n+1) hợp lệ, bỏ qua các dòng trống hoặc NaN
+     */
+    private String getNextValidLabel(Sheet sheet, int currentRowIndex) {
+        for (int i = currentRowIndex + 1; i <= sheet.getLastRowNum(); i++) {
+            Row row = sheet.getRow(i);
+            if (row != null) {
+                String label = getCellValueAsString(row.getCell(0)).trim();
+                if (!label.isEmpty() && !label.equalsIgnoreCase("NaN")) {
+                    return label; // Trả về nhãn của row tiếp theo có dữ liệu
+                }
+            }
         }
-        return count;
+        return "";
     }
 
-    // --- Logic phán đoán xem có phải node Sản Phẩm không (VD: Có con bên dưới hoặc mang tính Checkbox) ---
-    private boolean isPotentialProductNode(String label, ProductDto currentProduct) {
-        // Ta có thể đoán nó là sản phẩm nếu chưa có sản phẩm nào,
-        // hoặc label khác biệt hẳn so với các packageAttributes thông thường
-        // Logic thực tế tùy bạn định nghĩa quy ước file, ở đây ta ưu tiên cụm "Gói Sản phẩm" làm flag để khởi tạo block
-        return label.toLowerCase().contains("sản phẩm");
-    }
-
-    // --- Parse đa hình: tự nhận diện là Số nguyên, Boolean hay Chuỗi ---
+    // --- Các hàm Parse Data (Giữ nguyên) ---
     private Object parseDynamicValue(String value) {
         if (value == null || value.isEmpty()) return null;
-
-        // Thử xem có phải boolean ko
         String upper = value.toUpperCase();
         if (upper.equals("TRUE") || upper.equals("FALSE")) return Boolean.parseBoolean(upper);
 
-        // Thử parse số
         try {
             BigDecimal bd = new BigDecimal(value);
-            // Trả về Long nếu là số nguyên, Double nếu là số thập phân
             if (bd.scale() <= 0) return bd.longValueExact();
             else return bd.doubleValue();
         } catch (Exception e) {
-            // Nếu không phải số, trả về string ban đầu
             return value;
         }
     }
 
-    // (Giữ lại hàm getCellValueAsString và parseBoolean từ code cũ)
+    public <R> List<R> parseExcelNDepth(MultipartFile file, ExcelTreeMapper<R> mapper) throws Exception {
+        List<R> resultList = new ArrayList<>();
+
+        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+            Sheet sheet = workbook.getSheetAt(0);
+            Row headerRow = sheet.getRow(0);
+            if (headerRow == null) return resultList;
+
+            int numCols = headerRow.getLastCellNum();
+
+            for (int colIndex = 1; colIndex < numCols; colIndex++) {
+                String packageName = getCellValueAsString(headerRow.getCell(colIndex)).trim();
+                if (packageName.isEmpty()) continue;
+
+                // Khởi tạo Root
+                R rootNode = mapper.createRootNode(packageName);
+
+                // Map lưu trữ Node đang xét tại mỗi cấp độ (Level -> Node Object)
+                Map<Integer, Object> activeNodes = new HashMap<>();
+                activeNodes.put(0, rootNode); // Level 0 là Root
+
+                for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                    Row row = sheet.getRow(rowIndex);
+                    if (row == null) continue;
+
+                    String rawLabel = getCellValueAsString(row.getCell(0)).trim();
+                    if (rawLabel.isEmpty() || rawLabel.equalsIgnoreCase("NaN")) continue;
+
+                    Object cellValue = parseDynamicValue(getCellValueAsString(row.getCell(colIndex)).trim());
+
+                    // LOGIC LOOKAHEAD
+                    String nextLabel = getNextValidLabel(sheet, rowIndex);
+                    boolean isParentNode = !nextLabel.isEmpty() && nextLabel.startsWith(rawLabel + "_");
+
+                    // Xác định Level
+                    String[] parts = rawLabel.split("_");
+                    int level = parts.length;
+                    String nodeName = parts[level - 1].trim();
+
+                    // Lấy Node cha ở Level ngay phía trên (Level - 1)
+                    Object parentNode = activeNodes.get(level - 1);
+                    if (parentNode == null) continue; // Bỏ qua nếu file Excel đứt gãy cấu trúc cha-con
+
+                    if (isParentNode) {
+                        // Khởi tạo Node mới
+                        Object newNode = mapper.createParentNode(level, nodeName, cellValue);
+                        // Gắn vào cha
+                        mapper.linkNode(level, newNode, parentNode);
+                        // Ghi nhận Node này đang active ở Level hiện tại
+                        activeNodes.put(level, newNode);
+
+                        // Xóa các vết của Level sâu hơn (tránh rác data khi chuyển sang nhánh mới)
+                        activeNodes.keySet().removeIf(k -> k > level);
+                    } else {
+                        // Xử lý Node lá
+                        mapper.processLeaf(level, parentNode, nodeName, cellValue);
+                    }
+                }
+                resultList.add(rootNode);
+            }
+        }
+        return resultList;
+    }
+
     private String getCellValueAsString(Cell cell) {
         if (cell == null) return "";
         return switch (cell.getCellType()) {

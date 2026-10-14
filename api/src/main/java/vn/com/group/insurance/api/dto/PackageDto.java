@@ -27,4 +27,11 @@ public class PackageDto {
     private Map<String, Object> packageAttributes = new LinkedHashMap<>();
 
     private List<ProductDto> products = new ArrayList<>();
+
+    public PackageDto() {
+    }
+
+    public PackageDto(String name) {
+        packageName = name;
+    }
 }

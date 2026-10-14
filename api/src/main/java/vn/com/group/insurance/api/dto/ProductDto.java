@@ -27,8 +27,14 @@ public class ProductDto {
     private Boolean isCheck;
 
     // Lưu mọi thuộc tính con linh hoạt (Tính tiền, số tháng, lương, v.v.)
-    private Map<String, Object> attributes = new LinkedHashMap<>();
+    private Map<String, Object> productAttributes = new LinkedHashMap<>();
 
-    private List<ContentDto> contents = new ArrayList<>();
-    private List<BenefitDto> generalBenefits = new ArrayList<>();
+    private List<BenefitDto> mainBenefits = new ArrayList<>();
+
+    public ProductDto() {
+    }
+
+    public ProductDto(String name, Object value) {
+        productName = name;
+    }
 }
