@@ -1,6 +1,8 @@
 package vn.com.group.insurance.api.dto;
 
 import lombok.Data;
+import vn.com.group.insurance.api.annotation.ExcelProperty;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,6 +27,12 @@ import java.util.Map;
 public class ProductDto {
     private String productName;
     private Boolean isCheck;
+
+    @ExcelProperty("Tính Tiền dựa trên lương") // Khớp tự động dù Excel ghi "Gói 1_Tính Tiền..." hay "Gói 2_Tính Tiền..."
+    private Boolean calculateBasedOnSalary;
+
+    @ExcelProperty("Lương trung bình tháng")
+    private Long averageMonthlySalary;
 
     // Lưu mọi thuộc tính con linh hoạt (Tính tiền, số tháng, lương, v.v.)
     private Map<String, Object> productAttributes = new LinkedHashMap<>();

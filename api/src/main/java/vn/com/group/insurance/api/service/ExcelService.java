@@ -2,6 +2,7 @@ package vn.com.group.insurance.api.service;
 
 import org.springframework.web.multipart.MultipartFile;
 import vn.com.group.insurance.api.dto.PackageDto;
+import vn.com.group.insurance.api.dto.PolicyDto;
 import vn.com.group.insurance.api.mapper.ExcelTreeMapper;
 
 import java.io.IOException;
@@ -17,4 +18,5 @@ public interface ExcelService {
 //    List<PackageDto> parseExcel(MultipartFile file) throws Exception;
     List<PackageDto> parseExcelDynamic(MultipartFile file) throws Exception;
     <R> List<R> parseExcelNDepth(MultipartFile file, ExcelTreeMapper<R> mapper) throws Exception;
+    public <R> PolicyDto parseExcelWithPolicy(MultipartFile file, ExcelTreeMapper<R> mapper, int packageHeaderRowIndex) throws Exception;
 }

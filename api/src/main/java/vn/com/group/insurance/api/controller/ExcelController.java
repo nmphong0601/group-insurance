@@ -6,6 +6,7 @@ import org.springframework.web.multipart.MultipartFile;
 import vn.com.group.insurance.api.dto.*;
 import vn.com.group.insurance.api.mapper.ExcelTreeMapper;
 import vn.com.group.insurance.api.service.ExcelService;
+import vn.com.group.insurance.api.utils.ExcelReflectionUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -57,7 +58,18 @@ public class ExcelController {
             return ResponseEntity.badRequest().body("File không được để trống!");
         }
         try {
-            List<PackageDto> result = excelService.parseExcelNDepth(file, new ExcelTreeMapper<>() {
+            ExcelTreeMapper<PackageDto> packageTreeMapper = new ExcelTreeMapper<>() {
+
+                // --- HÀM TIỆN ÍCH: Ép kiểu an toàn ra Boolean ---
+                // Xử lý bao quát cả trường hợp Excel lưu dạng Số (1/0), Chữ (TRUE/FALSE/YES) hay Boolean gốc
+                private Boolean extractIsCheck(Object value) {
+                    if (value == null) return false;
+                    if (value instanceof Boolean) return (Boolean) value;
+                    if (value instanceof Number) return ((Number) value).intValue() == 1; // 1 = true, 0 = false
+
+                    String s = value.toString().trim().toUpperCase();
+                    return s.equals("1") || s.equals("TRUE") || s.equals("YES");
+                }
 
                 @Override
                 public PackageDto createRootNode(String name) {
@@ -68,11 +80,24 @@ public class ExcelController {
                 public Object createParentNode(int level, String name, Object value) {
                     // Dựa vào độ sâu để khởi tạo DTO tương ứng
                     return switch (level) {
-                        case 1 -> new ProductDto(name, value);
-                        case 2 -> new BenefitDto(name, value);
-                        case 3 -> new BenefitDto(name, value);
-                        // case 4: return new SubBenefitDto(); (Thêm tuỳ ý)
-                        default -> null;
+                        case 1:
+                            ProductDto p = new ProductDto();
+                            p.setProductName(name);
+                            p.setIsCheck(extractIsCheck(value));
+                            yield p;
+                        case 2:
+                            BenefitDto mainBenefit = new BenefitDto();
+                            mainBenefit.setBenefitName(name);
+                            mainBenefit.setIsCheck(extractIsCheck(value));;
+                            yield mainBenefit;
+                        case 3:
+                            BenefitDto benefit = new BenefitDto();
+                            benefit.setBenefitName(name);
+                            benefit.setIsCheck(extractIsCheck(value));;
+                            yield benefit;
+                            // case 4: return new SubBenefitDto(); (Thêm tuỳ ý)
+                        default:
+                            yield null;
                     };
                 }
 
@@ -94,27 +119,28 @@ public class ExcelController {
 
                 @Override
                 public void processLeaf(int level, Object parentNode, String name, Object value) {
-                    // Phân loại xử lý các Node không có con
-                    switch (level) {
-                        case 1:
-                            // Các Node lá cấp 1 (như Nhóm nhân viên, Nhóm nghề) -> Gán vào field của Package
-                            ((PackageDto) parentNode).getPackageAttributes().put(name, value);
-                            break;
-                        case 2:
-                            // Các Node lá cấp 2 (như Lương trung bình) -> Gán vào field của Product
-                            ((ProductDto) parentNode).getProductAttributes().put(name, value);
-                            break;
-                        case 3:
-                            // Nếu ở cấp 3 mà phát hiện Node lá, có thể sinh ra Benefit Object và gài vô luôn
-                            BenefitDto b = new BenefitDto(name, value);
-                            ((BenefitDto) parentNode).getChildBenefits().add(b);
-                            break;
-                        case 4:
-                            // Nếu file có level sâu hơn... xử lý tương tự
-                            break;
+                    // Nếu là Benefit ở dạng Node Lá (Là dòng Quyền lợi phụ không có nhánh con bên trong nữa)
+                    if (level == 3 && parentNode instanceof BenefitDto) {
+                        BenefitDto childBenefit = new BenefitDto();
+                        childBenefit.setBenefitName(name);
+                        // MAP TRỰC TIẾP GIÁ TRỊ VÀO isCheck CHO QUYỀN LỢI LÁ
+                        childBenefit.setIsCheck(extractIsCheck(value));
+
+                        ((BenefitDto) parentNode).getChildBenefits().add(childBenefit);
+                        return; // return luôn để không đưa chuỗi này qua ExcelReflectionUtils quét nữa
                     }
+
+                    // Nếu không phải quyền lợi, đẩy qua Reflection để tìm Annotation như bình thường
+                    ExcelReflectionUtils.injectValue(parentNode, name, value);
                 }
-            });
+            };
+
+            // List<PackageDto> result = excelService.parseExcelNDepth(file, packageTreeMapper);
+
+            // Tham số thứ 3 (số 6) chính là vị trí của dòng chứa tiêu đề "Gói_01", "Gói_02"
+            // (Tính từ 0, ví dụ nếu ở Excel là dòng số 7 thì index = 6)
+            int packageHeaderRowIndex = 7;
+            PolicyDto result = excelService.parseExcelWithPolicy(file, packageTreeMapper, packageHeaderRowIndex);
 
             return ResponseEntity.ok(result);
 
