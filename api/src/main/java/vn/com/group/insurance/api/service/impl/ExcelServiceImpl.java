@@ -614,3 +614,161 @@ public class ExcelServiceImpl implements ExcelService {
         };
     }
 }
+
+package com.example.excelapi.service;
+
+import com.example.excelapi.dto.PolicyDto;
+import com.example.excelapi.mapper.ExcelTreeMapper;
+import com.example.excelapi.util.ExcelReflectionUtils;
+import org.apache.poi.ss.usermodel.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.Map;
+
+@Service
+public class ExcelReaderService {
+
+    public <R> PolicyDto parseExcelWithPolicy(MultipartFile file, ExcelTreeMapper<R> mapper, int packageHeaderRowIndex) throws Exception {
+        PolicyDto policy = new PolicyDto();
+
+        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+            Sheet sheet = workbook.getSheetAt(0);
+            
+            // 1. Đọc Policy Properties (Giữ nguyên logic cũ)
+            for (int i = 0; i < packageHeaderRowIndex; i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+                String label = getCellValueAsString(row.getCell(0)).trim();
+                if (label.isEmpty() || label.equalsIgnoreCase("NaN")) continue;
+                Object value = parseDynamicValue(getCellValueAsString(row.getCell(1)).trim());
+                ExcelReflectionUtils.injectValue(policy, label, value);
+            }
+
+            Row packageHeaderRow = sheet.getRow(packageHeaderRowIndex);
+            if (packageHeaderRow == null) return policy;
+            int numCols = packageHeaderRow.getLastCellNum();
+
+            // 2. Đọc danh sách Package
+            for (int colIndex = 1; colIndex < numCols; colIndex++) {
+                String packageName = getCellValueAsString(packageHeaderRow.getCell(colIndex)).trim();
+                if (packageName.isEmpty()) continue;
+
+                R rootNode = mapper.createRootNode(packageName);
+                
+                // Map lưu trữ Node đang kích hoạt dựa trên độ sâu (số lượng dấu "_")
+                // Root (Package) luôn mặc định nằm ở độ sâu -1
+                Map<Integer, Object> activeNodes = new HashMap<>();
+                activeNodes.put(-1, rootNode); 
+
+                for (int rowIndex = packageHeaderRowIndex + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                    Row row = sheet.getRow(rowIndex);
+                    if (row == null) continue;
+
+                    String rawLabel = getCellValueAsString(row.getCell(0)).trim();
+                    if (rawLabel.isEmpty() || rawLabel.equalsIgnoreCase("NaN")) continue;
+
+                    String shortName = getShortName(rawLabel);
+                    Object cellValue = parseDynamicValue(getCellValueAsString(row.getCell(colIndex)).trim());
+
+                    // THUẬT TOÁN ĐẾM DELIMITER ĐỂ TÌM ĐỘ SÂU
+                    int currentDepth = countDelimiters(rawLabel);
+                    
+                    // LOOKAHEAD: Xem dòng tiếp theo có chìm sâu hơn không (nhiều dấu _ hơn)
+                    Cell nextCell = getNextValidCell(sheet, rowIndex);
+                    int nextDepth = -1;
+                    if (nextCell != null) {
+                        nextDepth = countDelimiters(getCellValueAsString(nextCell).trim());
+                    }
+
+                    boolean isParentNode = nextDepth > currentDepth;
+
+                    // TÌM NODE CHA GẦN NHẤT (Quét lùi từ độ sâu hiện tại về -1)
+                    Object parentNode = getNearestActiveParent(activeNodes, currentDepth);
+
+                    if (isParentNode) {
+                        // Khởi tạo và gắn Node con vào Node cha
+                        Object newNode = mapper.createParentNode(parentNode, shortName, cellValue);
+                        if (newNode != null) {
+                            mapper.linkNode(newNode, parentNode);
+                            activeNodes.put(currentDepth, newNode);
+                            
+                            // Dọn dẹp rác của các nhánh sâu hơn trước đó
+                            activeNodes.keySet().removeIf(level -> level > currentDepth);
+                        }
+                    } else {
+                        // Gọi hàm xử lý Node Lá
+                        mapper.processLeaf(parentNode, shortName, cellValue);
+                    }
+                }
+                policy.getPackages().add((com.example.excelapi.dto.PackageDto) rootNode); 
+            }
+        }
+        return policy;
+    }
+
+    // --- CÁC HÀM XỬ LÝ MỚI ---
+
+    // Đếm số lượng dấu gạch dưới "_" để định vị cấp bậc
+    private int countDelimiters(String text) {
+        int count = 0;
+        for (char c : text.toCharArray()) {
+            if (c == '_') count++;
+        }
+        return count;
+    }
+
+    // Quét ngược về độ sâu trước đó để tìm cha hợp lệ
+    private Object getNearestActiveParent(Map<Integer, Object> activeNodes, int currentDepth) {
+        for (int i = currentDepth - 1; i >= -1; i--) {
+            if (activeNodes.containsKey(i)) {
+                return activeNodes.get(i);
+            }
+        }
+        return activeNodes.get(-1); // Trả về Root nếu không tìm thấy
+    }
+
+    private String getShortName(String fullLabel) {
+        if (fullLabel == null || fullLabel.isEmpty()) return "";
+        String[] parts = fullLabel.split("_");
+        return parts[parts.length - 1].trim();
+    }
+
+    private Cell getNextValidCell(Sheet sheet, int currentRowIndex) {
+        for (int i = currentRowIndex + 1; i <= sheet.getLastRowNum(); i++) {
+            Row row = sheet.getRow(i);
+            if (row != null) {
+                Cell cell = row.getCell(0);
+                String label = getCellValueAsString(cell);
+                if (label != null && !label.trim().isEmpty() && !label.trim().equalsIgnoreCase("NaN")) {
+                    return cell; 
+                }
+            }
+        }
+        return null;
+    }
+    
+    // (Giữ nguyên các hàm parseDynamicValue, getCellValueAsString giống lúc trước để chống số khoa học 1.2E8)
+    private Object parseDynamicValue(String value) {
+        if (value == null || value.isEmpty()) return null;
+        String upper = value.toUpperCase();
+        if (upper.equals("TRUE") || upper.equals("FALSE")) return Boolean.parseBoolean(upper);
+        try {
+            BigDecimal bd = new BigDecimal(value).stripTrailingZeros();
+            return bd.scale() <= 0 ? bd.longValueExact() : bd.doubleValue();
+        } catch (Exception e) { return value; }
+    }
+
+    private String getCellValueAsString(Cell cell) {
+        if (cell == null) return "";
+        switch (cell.getCellType()) {
+            case STRING: return cell.getStringCellValue();
+            case NUMERIC: return BigDecimal.valueOf(cell.getNumericCellValue()).stripTrailingZeros().toPlainString();
+            case BOOLEAN: return String.valueOf(cell.getBooleanCellValue());
+            default: return "";
+        }
+    }
+}
+
