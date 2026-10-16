@@ -192,4 +192,50 @@ public class ExcelObjectMappingService {
             default: return "";
         }
     }
+
+private Object castValue(Class<?> targetType, Object value) {
+    if (value == null) return null;
+
+    String s = value.toString().trim();
+    if (s.isEmpty()) return null;
+
+    // 1. Xử lý nhóm Boolean (hỗ trợ 1/0, True/False, Yes/No)
+    if (targetType == Boolean.class || targetType == boolean.class) {
+        String up = s.toUpperCase();
+        return up.equals("1") || up.equals("TRUE") || up.equals("YES") || up.equals("Y");
+    }
+
+    // 2. Xử lý nhóm Số học (Sử dụng BigDecimal làm trung gian để chống sai số/thập phân dư)
+    try {
+        if (targetType == Long.class || targetType == long.class) {
+            return new BigDecimal(s).longValue();
+        } else if (targetType == Integer.class || targetType == int.class) {
+            return new BigDecimal(s).intValue();
+        } else if (targetType == Double.class || targetType == double.class) {
+            return new BigDecimal(s).doubleValue();
+        } else if (targetType == Float.class || targetType == float.class) {
+            return new BigDecimal(s).floatValue();
+        } else if (targetType == BigDecimal.class) {
+            return new BigDecimal(s);
+        }
+    } catch (Exception e) {
+        System.err.println("Cảnh báo: Không thể ép giá trị '" + s + "' sang kiểu " + targetType.getSimpleName());
+        return null;
+    }
+
+    // 3. Xử lý nhóm String
+    if (targetType == String.class) {
+        // Nếu giá trị nguyên gốc là một số lớn bị Excel biến thành E (1.2E8)
+        // Ta đưa nó về số tự nhiên trước khi trả ra String ("120000000")
+        try {
+            return new BigDecimal(s).stripTrailingZeros().toPlainString();
+        } catch (Exception e) {
+            return s; // Nếu là chuỗi chữ bình thường ("Khách hàng VIP") thì giữ nguyên
+        }
+    }
+
+    // 4. Nếu là các Object tĩnh khác, trả về nguyên bản
+    return value;
+}
+
 }
