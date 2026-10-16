@@ -1,0 +1,20 @@
+@RestController
+@RequestMapping("/api/excel")
+public class ExcelUploadController {
+
+    @Autowired
+    private ExcelObjectMappingService excelService;
+
+    @PostMapping("/upload")
+    public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
+        try {
+            // Chỉ định dòng số 6 (index = 6) là Header của Package. Xong!
+            PolicyDto result = excelService.parseExcelByAnnotations(file, 6);
+            
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Lỗi: " + e.getMessage());
+        }
+    }
+}
