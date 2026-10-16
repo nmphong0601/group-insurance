@@ -1,0 +1,30 @@
+package com.example.excelapi.annotation;
+
+import java.lang.annotation.*;
+
+// 1. Dùng để map các dữ liệu đơn (vd: Tính tiền, Lương)
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.FIELD)
+public @interface ExcelProperty {
+    String[] keyword(); // Mảng từ khóa để bắt. VD: {"Tính tiền", "Lương"}
+    int level();        // Khai báo cấp độ cố định (Policy=0, Package=1, Product=2...)
+}
+
+// 2. Dùng để đánh dấu Field này chứa 1 Danh sách (List), đẻ ra một Nhánh mới
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.FIELD)
+public @interface ExcelCollection {
+    String[] keyword(); 
+    int level();        // Cấp độ của Collection này (vd: Product=2, Content=3)
+    Class<?> itemClass(); // Object sẽ được đẻ ra khi match (vd: ProductDto.class)
+}
+
+// 3. Hứng Tên/Label của Node cha
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.FIELD)
+public @interface ExcelNodeName {}
+
+// 4. Hứng Value (TRUE/FALSE) của dòng tạo ra Node cha
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.FIELD)
+public @interface ExcelNodeValue {}
