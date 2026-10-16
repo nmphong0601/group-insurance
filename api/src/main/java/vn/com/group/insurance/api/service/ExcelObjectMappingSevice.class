@@ -238,4 +238,67 @@ private Object castValue(Class<?> targetType, Object value) {
     return value;
 }
 
+private Object castValue(Class<?> targetType, Object value) {
+    if (value == null) return null;
+
+    // ==========================================
+    // BƯỚC 1: TIỀN XỬ LÝ (Chống Scientific Notation 1.5E7 triệt để)
+    // ==========================================
+    String s;
+    if (value instanceof Number) {
+        // Nếu Java đang hiểu nó là một Số (Double, Float, Long)
+        // Dùng BigDecimal toPlainString() để bắt buộc in ra nguyên vẹn (15000000)
+        s = new BigDecimal(value.toString()).stripTrailingZeros().toPlainString();
+    } else {
+        s = value.toString().trim();
+        // Nếu giá trị là Chuỗi nhưng bị Excel dính chữ E (VD: Text cell "1.5E7")
+        if (s.toUpperCase().contains("E")) {
+            try {
+                s = new BigDecimal(s).stripTrailingZeros().toPlainString();
+            } catch (Exception ignored) {
+                // Nếu nó không phải là số (ví dụ chuỗi "ZONE7"), thì giữ nguyên
+            }
+        }
+    }
+
+    if (s.isEmpty()) return null;
+
+    // ==========================================
+    // BƯỚC 2: ÉP KIỂU SANG ĐÍCH (Target Type)
+    // ==========================================
+    
+    // 1. Nếu đích là Boolean
+    if (targetType == Boolean.class || targetType == boolean.class) {
+        String up = s.toUpperCase();
+        return up.equals("1") || up.equals("TRUE") || up.equals("YES") || up.equals("Y");
+    }
+
+    // 2. Nếu đích là Số học
+    try {
+        if (targetType == Long.class || targetType == long.class) {
+            return new BigDecimal(s).longValue();
+        } else if (targetType == Integer.class || targetType == int.class) {
+            return new BigDecimal(s).intValue();
+        } else if (targetType == Double.class || targetType == double.class) {
+            return new BigDecimal(s).doubleValue();
+        } else if (targetType == Float.class || targetType == float.class) {
+            return new BigDecimal(s).floatValue();
+        } else if (targetType == BigDecimal.class) {
+            return new BigDecimal(s);
+        }
+    } catch (Exception e) {
+        System.err.println("Cảnh báo: Không thể ép giá trị '" + s + "' sang " + targetType.getSimpleName());
+        return null;
+    }
+
+    // 3. Nếu đích là String (Chuỗi đã được làm sạch chữ E ở bước 1)
+    if (targetType == String.class) {
+        return s;
+    }
+
+    // Trả về Object gốc nếu không khớp các kiểu trên
+    return value;
+}
+
+
 }
