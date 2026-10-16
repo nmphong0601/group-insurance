@@ -150,3 +150,81 @@ public class ExcelController {
         }
     }
 }
+
+@PostMapping("/upload")
+public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
+    try {
+        int packageHeaderRowIndex = 6; 
+
+        PolicyDto result = excelService.parseExcelWithPolicy(file, new ExcelTreeMapper<PackageDto>() {
+
+            private Boolean extractIsCheck(Object value) {
+                if (value == null) return false;
+                if (value instanceof Boolean) return (Boolean) value;
+                if (value instanceof Number) return ((Number) value).intValue() == 1;
+                String s = value.toString().trim().toUpperCase();
+                return s.equals("1") || s.equals("TRUE") || s.equals("YES");
+            }
+
+            @Override
+            public PackageDto createRootNode(String name) {
+                return new PackageDto(name); 
+            }
+
+            @Override
+            public Object createParentNode(Object parentNode, String name, Object value) {
+                // LOGIC NỘI SUY (Đỉnh cao của OOP): Kiểm tra Instance của cha để đẻ ra con
+                if (parentNode instanceof PackageDto) {
+                    ProductDto p = new ProductDto();
+                    p.setProductName(name);
+                    p.setIsCheck(extractIsCheck(value)); // Set TRUE/FALSE từ gốc
+                    return p;
+                } else if (parentNode instanceof ProductDto) {
+                    ContentDto c = new ContentDto();
+                    c.setContentName(name);
+                    return c;
+                } else if (parentNode instanceof ContentDto) {
+                    BenefitDto b = new BenefitDto();
+                    b.setBenefitName(name);
+                    b.setIsCheck(extractIsCheck(value)); // Set TRUE/FALSE từ gốc
+                    return b;
+                }
+                return null;
+            }
+
+            @Override
+            public void linkNode(Object child, Object parent) {
+                if (parent instanceof PackageDto && child instanceof ProductDto) {
+                    ((PackageDto) parent).getProducts().add((ProductDto) child);
+                } else if (parent instanceof ProductDto && child instanceof ContentDto) {
+                    ((ProductDto) parent).getContents().add((ContentDto) child);
+                } else if (parent instanceof ContentDto && child instanceof BenefitDto) {
+                    ((ContentDto) parent).getBenefits().add((BenefitDto) child);
+                }
+            }
+
+            @Override
+            public void processLeaf(Object parentNode, String name, Object value) {
+                // Đặc biệt: Nếu là Node lá ở cấp độ Quyền Lợi (Cha là Content)
+                // Nó sinh ra một Object rời thay vì Field thuộc tính
+                if (parentNode instanceof ContentDto) {
+                    BenefitDto b = new BenefitDto();
+                    b.setBenefitName(name);
+                    b.setIsCheck(extractIsCheck(value)); 
+                    ((ContentDto) parentNode).getBenefits().add(b);
+                    return; 
+                }
+                
+                // Các Node lá còn lại: Bắn thẳng vào Field thông qua Annotation Reflection (Bất kể prefix là gì)
+                ExcelReflectionUtils.injectValue(parentNode, name, value);
+            }
+
+        }, packageHeaderRowIndex);
+
+        return ResponseEntity.ok(result);
+    } catch (Exception e) {
+        e.printStackTrace();
+        return ResponseEntity.internalServerError().body("Lỗi: " + e.getMessage());
+    }
+}
+
