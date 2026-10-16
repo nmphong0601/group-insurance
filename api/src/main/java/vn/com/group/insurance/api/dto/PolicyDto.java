@@ -26,3 +26,15 @@ public class PolicyDto {
     // Danh sách các Package
     private List<PackageDto> packages = new ArrayList<>();
 }
+
+@Data
+public class PolicyDto {
+    @ExcelProperty(keyword = {"Tên công ty"}, level = 0)
+    private String companyName;
+
+    @ExcelProperty(keyword = {"Tổng số tiền"}, level = 0)
+    private Long totalAmount;
+
+    private List<PackageDto> packages = new ArrayList<>(); // Quét ngang nên bỏ qua Collection
+}
+
