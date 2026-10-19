@@ -285,4 +285,53 @@ public class ExcelUploadController {
     }
 }
 
+@PostMapping("/upload")
+public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
+    try {
+        // Cấu hình từ Database (Hoặc Admin Dashboard)
+        Map<String, FieldRule> dynamicDictionary = new HashMap<>();
+
+        // Ví dụ 1: Map theo Index chính xác
+        // Tên công ty luôn nằm ở Dòng số 0 (Row Index = 0). Quét theo ROW. Trả về String.
+        dynamicDictionary.put("companyName", FieldRule.builder()
+            .index(0)
+            .level(0)
+            .direction(FieldRule.Direction.ROW)
+            .dataType(String.class)
+            .build());
+
+        // Ví dụ 2: Map theo Name tương đối
+        // Lương trung bình nằm ở dòng nào không rõ, nhưng chứa chữ "Lương trung bình". Trả về Long.
+        dynamicDictionary.put("averageMonthlySalary", FieldRule.builder()
+            .name("Lương trung bình")
+            .level(2)
+            .direction(FieldRule.Direction.ROW)
+            .dataType(Long.class)
+            .build());
+
+        // Ví dụ 3: Map theo Hướng COLUMN
+        // Bạn muốn quét tên của Gói (Package 1, Package 2) nằm trên Header Cột (Ví dụ cột có chữ "Gói")
+        dynamicDictionary.put("packageName", FieldRule.builder()
+            .name("Gói")
+            .level(1)
+            .direction(FieldRule.Direction.COLUMN)
+            .dataType(String.class)
+            .build());
+            
+        // Ví dụ 4: Khởi tạo Collection (Danh sách Sản phẩm)
+        dynamicDictionary.put("products", FieldRule.builder()
+            .name("Sản phẩm")
+            .level(2)
+            .direction(FieldRule.Direction.ROW)
+            .build());
+
+        // Chạy Engine
+        PolicyDto result = excelService.parseExcelByDictionary(file, 6, dynamicDictionary);
+        return ResponseEntity.ok(result);
+
+    } catch (Exception e) {
+        return ResponseEntity.internalServerError().body("Lỗi: " + e.getMessage());
+    }
+}
+
 
