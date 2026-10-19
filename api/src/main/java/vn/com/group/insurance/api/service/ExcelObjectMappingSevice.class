@@ -483,5 +483,46 @@ private boolean isMatch(FieldRule rule, int currentIndex, String currentLabel, S
     return false;
 }
 
+private boolean mapToProperty(
+        Map<Integer, Object> activeNodes, 
+        int currentRowIdx, 
+        int currentColIdx, 
+        String rowLabel, 
+        String colLabel, // Bổ sung label của cột
+        Object cellValue, 
+        Map<String, FieldRule> dict
+) throws Exception {
+    
+    for (Map.Entry<Integer, Object> entry : activeNodes.entrySet()) {
+        Object obj = entry.getValue();
+        if (obj == null) continue;
+
+        for (Field field : obj.getClass().getDeclaredFields()) {
+            if (field.isAnnotationPresent(ExcelProperty.class)) {
+                FieldRule rule = dict.get(field.getName());
+                
+                if (rule != null && rule.getLevel() == entry.getKey()) {
+                    boolean isMatched = false;
+                    
+                    // RẼ NHÁNH THEO HƯỚNG QUÉT (DIRECTION)
+                    if (rule.getDirection() == FieldRule.Direction.ROW) {
+                        isMatched = isMatch(rule, currentRowIdx, rowLabel, ""); // Giả sử chưa có hệ thống rowCode
+                    } else if (rule.getDirection() == FieldRule.Direction.COLUMN) {
+                        isMatched = isMatch(rule, currentColIdx, colLabel, ""); 
+                    }
+
+                    if (isMatched) {
+                        field.setAccessible(true);
+                        // ÉP KIỂU THEO ĐỊNH NGHĨA TRONG RULE (Không phụ thuộc vào field.getType() nữa)
+                        Object castedValue = castValue(rule.getDataType(), cellValue);
+                        field.set(obj, castedValue);
+                        return true; 
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
 
 
