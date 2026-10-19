@@ -28,3 +28,23 @@ public @interface ExcelNodeName {}
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
 public @interface ExcelNodeValue {}
+
+
+package com.example.excelapi.annotation;
+import java.lang.annotation.*;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.FIELD)
+public @interface ExcelProperty {
+    int level(); 
+}
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.FIELD)
+public @interface ExcelCollection {
+    int level();
+    Class<?> itemClass();
+}
+
+// Giữ nguyên @ExcelNodeName và @ExcelNodeValue
+
