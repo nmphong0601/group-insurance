@@ -228,3 +228,61 @@ public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
     }
 }
 
+
+
+
+@RestController
+@RequestMapping("/api/excel")
+public class ExcelUploadController {
+
+    @Autowired
+    private ExcelObjectMappingService excelService;
+
+    // Giả lập một Object lấy từ DB
+    @Data
+    class ConfigRule {
+        private String targetField; // Tên biến trong Java
+        private List<String> matchKeywords; // Danh sách từ khóa
+        
+        public ConfigRule(String targetField, List<String> matchKeywords) {
+            this.targetField = targetField;
+            this.matchKeywords = matchKeywords;
+        }
+    }
+
+    @PostMapping("/upload")
+    public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
+        try {
+            // Bước 1: Fetch danh sách cấu hình từ Database/API
+            List<ConfigRule> rulesFromDb = Arrays.asList(
+                new ConfigRule("companyName", Arrays.asList("Tên công ty", "Đơn vị chủ quản")),
+                new ConfigRule("calculateBasedOnSalary", Arrays.asList("Tính tiền", "dựa trên lương")),
+                new ConfigRule("averageMonthlySalary", Arrays.asList("Lương trung bình", "Mức lương")),
+                new ConfigRule("products", Arrays.asList("Sản phẩm", "Product")),
+                new ConfigRule("contents", Arrays.asList("Nội dung", "Quyền lợi chính")),
+                new ConfigRule("benefits", Arrays.asList("Quyền lợi", "Phụ cấp"))
+            );
+
+            // Bước 2: Build Từ điển (Map) từ List Object
+            Map<String, List<String>> dynamicDictionary = new HashMap<>();
+            for (ConfigRule rule : rulesFromDb) {
+                dynamicDictionary.put(rule.getTargetField(), rule.getMatchKeywords());
+            }
+
+            // Bước 3: Truyền file và Từ điển vào Engine xử lý
+            int packageHeaderRowIndex = 6; 
+            PolicyDto result = excelService.parseExcelByDictionary(
+                    file, 
+                    packageHeaderRowIndex, 
+                    dynamicDictionary
+            );
+            
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Lỗi: " + e.getMessage());
+        }
+    }
+}
+
+
