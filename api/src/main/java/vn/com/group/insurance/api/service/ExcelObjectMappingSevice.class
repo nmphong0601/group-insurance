@@ -461,3 +461,27 @@ public class ExcelObjectMappingService {
     // (Giữ nguyên các hàm tiện ích: getShortName, castValue chống Scientific Notation 1.5E7, parseDynamicValue...)
 }
 
+// Thêm đoạn này vào bên trong ExcelObjectMappingService
+private boolean isMatch(FieldRule rule, int currentIndex, String currentLabel, String currentCode) {
+    if (rule == null) return false;
+
+    // 1. Định vị bằng Index (Nhanh và chính xác nhất, O(1))
+    if (rule.getIndex() != null && rule.getIndex() == currentIndex) {
+        return true;
+    }
+
+    // 2. Định vị bằng Code (So khớp chính xác - Exact Match)
+    if (rule.getCode() != null && !rule.getCode().isEmpty()) {
+        if (rule.getCode().equalsIgnoreCase(currentCode)) return true;
+    }
+
+    // 3. Định vị bằng Name (So khớp tương đối - Contains)
+    if (rule.getName() != null && !rule.getName().isEmpty() && currentLabel != null) {
+        if (currentLabel.toLowerCase().contains(rule.getName().toLowerCase())) return true;
+    }
+
+    return false;
+}
+
+
+
