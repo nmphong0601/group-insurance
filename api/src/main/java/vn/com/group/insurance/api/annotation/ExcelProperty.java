@@ -5,9 +5,10 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+// Dùng để map các dữ liệu đơn (vd: Tính tiền, Lương)
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
 public @interface ExcelProperty {
-    // Giá trị từ khóa cần map. VD: "Tính Tiền dựa trên lương"
-    String value();
+    String[] keyword(); // Mảng từ khóa để bắt. VD: {"Tính tiền", "Lương"}
+    int level();        // Khai báo cấp độ cố định (Policy=0, Package=1, Product=2...)
 }

@@ -1,15 +1,21 @@
 package vn.com.group.insurance.api.controller;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import vn.com.group.insurance.api.dto.*;
+import vn.com.group.insurance.api.entity.sqlserver.ExcelRuleEntity;
 import vn.com.group.insurance.api.mapper.ExcelTreeMapper;
+import vn.com.group.insurance.api.service.ExcelListMappingService;
+import vn.com.group.insurance.api.service.ExcelObjectMappingService;
 import vn.com.group.insurance.api.service.ExcelService;
+import vn.com.group.insurance.api.service.FileStorageService;
 import vn.com.group.insurance.api.utils.ExcelReflectionUtils;
 
-import java.util.List;
-import java.util.Map;
+import java.io.File;
+import java.nio.file.Path;
+import java.util.*;
 
 /**
  * REST Controller exposing API microservice endpoints.
@@ -18,37 +24,68 @@ import java.util.Map;
 @RequestMapping("/api/v1/excel")
 public class ExcelController {
 
-    private final ExcelService excelService;
+    @Autowired
+    private FileStorageService fileStorageService;
 
-    public ExcelController(ExcelService excelService) {
-        this.excelService = excelService;
-    }
+    @Autowired
+    private ExcelService excelService;
 
-//    @PostMapping("/upload")
-//    public ResponseEntity<?> uploadExcel(@RequestParam("file") MultipartFile file) {
-//        if (file.isEmpty()) {
-//            return ResponseEntity.badRequest().body("Please upload an Excel file.");
-//        }
-//
-//        try {
-//            List<Map<String, String>> result = excelService.readDynamicExcel(file);
-//            return ResponseEntity.ok(result);
-//        } catch (Exception e) {
-//            return ResponseEntity.internalServerError().body("Failed to read Excel file: " + e.getMessage());
-//        }
-//    }
+    @Autowired
+    private ExcelObjectMappingService excelObjectMappingService;
+
+    @Autowired
+    private ExcelListMappingService excelListMappingService;
 
     @PostMapping("/upload")
-    public ResponseEntity<?> uploadExcelFile(@RequestParam("file") MultipartFile file) {
-        if (file.isEmpty()) {
-            return ResponseEntity.badRequest().body("File không được để trống!");
-        }
+    public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
         try {
-            List<PackageDto> packages = excelService.parseExcelDynamic(file);
-            return ResponseEntity.ok(packages);
+            // 1. Lưu file xuống Server trước
+            Path savedFilePath = fileStorageService.storeFile(file);
+
+            // Cấu hình từ Database (Hoặc Admin Dashboard)
+            Map<String, FieldRule> dynamicDictionary = new LinkedHashMap<>();
+
+            // Ví dụ 1: Map theo Index chính xác
+            // Tên công ty luôn nằm ở Dòng số 0 (Row Index = 0). Quét theo ROW. Trả về String.
+            dynamicDictionary.put("companyName", FieldRule.builder()
+                    .index(0)
+                    .level(0)
+                    .direction(FieldRule.Direction.ROW)
+                    .dataType(String.class)
+                    .build());
+
+            // Ví dụ 2: Map theo Name tương đối
+            // Lương trung bình nằm ở dòng nào không rõ, nhưng chứa chữ "Lương trung bình". Trả về Long.
+            dynamicDictionary.put("averageMonthlySalary", FieldRule.builder()
+                    .name("Lương trung bình")
+                    .level(2)
+                    .direction(FieldRule.Direction.ROW)
+                    .dataType(Long.class)
+                    .build());
+
+            // Ví dụ 3: Map theo Hướng COLUMN
+            // Bạn muốn quét tên của Gói (Package 1, Package 2) nằm trên Header Cột (Ví dụ cột có chữ "Gói")
+            dynamicDictionary.put("packageName", FieldRule.builder()
+                    .name("Gói")
+                    .level(1)
+                    .direction(FieldRule.Direction.COLUMN)
+                    .dataType(String.class)
+                    .build());
+
+            // Ví dụ 4: Khởi tạo Collection (Danh sách Sản phẩm)
+            dynamicDictionary.put("products", FieldRule.builder()
+                    .name("Sản phẩm")
+                    .level(2)
+                    .direction(FieldRule.Direction.ROW)
+                    .build());
+
+            // Chạy Engine
+            PolicyDto result = excelObjectMappingService.parseExcelByDictionary(file, 6, dynamicDictionary);
+
+            return ResponseEntity.ok(result);
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.internalServerError().body("Lỗi xử lý file: " + e.getMessage());
+            return ResponseEntity.internalServerError().body("Lỗi: " + e.getMessage());
         }
     }
 
@@ -58,6 +95,9 @@ public class ExcelController {
             return ResponseEntity.badRequest().body("File không được để trống!");
         }
         try {
+            // 1. Lưu file xuống Server trước
+            Path savedFilePath = fileStorageService.storeFile(file);
+
             ExcelTreeMapper<PackageDto> packageTreeMapper = new ExcelTreeMapper<>() {
 
                 // --- HÀM TIỆN ÍCH: Ép kiểu an toàn ra Boolean ---
@@ -73,54 +113,28 @@ public class ExcelController {
 
                 @Override
                 public PackageDto createRootNode(String name) {
-                    return new PackageDto(name); // Khởi tạo Level 0
+                    PackageDto packageDto = new PackageDto();
+                    packageDto.setPackageName(name);
+                    return packageDto; // Khởi tạo Level 0
                 }
 
                 @Override
-                public Object createParentNode(int level, String name, Object value) {
+                public Object createParentNode(Object parentNode, String name, Object value) {
                     // Dựa vào độ sâu để khởi tạo DTO tương ứng
-                    return switch (level) {
-                        case 1:
-                            ProductDto p = new ProductDto();
-                            p.setProductName(name);
-                            p.setIsCheck(extractIsCheck(value));
-                            yield p;
-                        case 2:
-                            BenefitDto mainBenefit = new BenefitDto();
-                            mainBenefit.setBenefitName(name);
-                            mainBenefit.setIsCheck(extractIsCheck(value));;
-                            yield mainBenefit;
-                        case 3:
-                            BenefitDto benefit = new BenefitDto();
-                            benefit.setBenefitName(name);
-                            benefit.setIsCheck(extractIsCheck(value));;
-                            yield benefit;
-                            // case 4: return new SubBenefitDto(); (Thêm tuỳ ý)
-                        default:
-                            yield null;
-                    };
+                    return parentNode;
                 }
 
                 @Override
-                public void linkNode(int level, Object childNode, Object parentNode) {
-                    // Gắn con vào cha dựa vào độ sâu
-                    switch (level) {
-                        case 1:
-                            ((PackageDto) parentNode).getProducts().add((ProductDto) childNode);
-                            break;
-                        case 2:
-                            ((ProductDto) parentNode).getMainBenefits().add((BenefitDto) childNode);
-                            break;
-                        case 3:
-                            ((BenefitDto) parentNode).getChildBenefits().add((BenefitDto) childNode);
-                            break;
+                public void linkNode(Object childNode, Object parentNode) {
+                    if (parentNode instanceof ProductDto) {
+
                     }
                 }
 
                 @Override
-                public void processLeaf(int level, Object parentNode, String name, Object value) {
+                public void processLeaf(Object parentNode, String name, Object value) {
                     // Nếu là Benefit ở dạng Node Lá (Là dòng Quyền lợi phụ không có nhánh con bên trong nữa)
-                    if (level == 3 && parentNode instanceof BenefitDto) {
+                    if (parentNode instanceof BenefitDto) {
                         BenefitDto childBenefit = new BenefitDto();
                         childBenefit.setBenefitName(name);
                         // MAP TRỰC TIẾP GIÁ TRỊ VÀO isCheck CHO QUYỀN LỢI LÁ
@@ -149,188 +163,56 @@ public class ExcelController {
             return ResponseEntity.internalServerError().body("Lỗi: " + e.getMessage());
         }
     }
-}
 
-@PostMapping("/upload")
-public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
-    try {
-        int packageHeaderRowIndex = 6; 
-
-        PolicyDto result = excelService.parseExcelWithPolicy(file, new ExcelTreeMapper<PackageDto>() {
-
-            private Boolean extractIsCheck(Object value) {
-                if (value == null) return false;
-                if (value instanceof Boolean) return (Boolean) value;
-                if (value instanceof Number) return ((Number) value).intValue() == 1;
-                String s = value.toString().trim().toUpperCase();
-                return s.equals("1") || s.equals("TRUE") || s.equals("YES");
-            }
-
-            @Override
-            public PackageDto createRootNode(String name) {
-                return new PackageDto(name); 
-            }
-
-            @Override
-            public Object createParentNode(Object parentNode, String name, Object value) {
-                // LOGIC NỘI SUY (Đỉnh cao của OOP): Kiểm tra Instance của cha để đẻ ra con
-                if (parentNode instanceof PackageDto) {
-                    ProductDto p = new ProductDto();
-                    p.setProductName(name);
-                    p.setIsCheck(extractIsCheck(value)); // Set TRUE/FALSE từ gốc
-                    return p;
-                } else if (parentNode instanceof ProductDto) {
-                    ContentDto c = new ContentDto();
-                    c.setContentName(name);
-                    return c;
-                } else if (parentNode instanceof ContentDto) {
-                    BenefitDto b = new BenefitDto();
-                    b.setBenefitName(name);
-                    b.setIsCheck(extractIsCheck(value)); // Set TRUE/FALSE từ gốc
-                    return b;
-                }
-                return null;
-            }
-
-            @Override
-            public void linkNode(Object child, Object parent) {
-                if (parent instanceof PackageDto && child instanceof ProductDto) {
-                    ((PackageDto) parent).getProducts().add((ProductDto) child);
-                } else if (parent instanceof ProductDto && child instanceof ContentDto) {
-                    ((ProductDto) parent).getContents().add((ContentDto) child);
-                } else if (parent instanceof ContentDto && child instanceof BenefitDto) {
-                    ((ContentDto) parent).getBenefits().add((BenefitDto) child);
-                }
-            }
-
-            @Override
-            public void processLeaf(Object parentNode, String name, Object value) {
-                // Đặc biệt: Nếu là Node lá ở cấp độ Quyền Lợi (Cha là Content)
-                // Nó sinh ra một Object rời thay vì Field thuộc tính
-                if (parentNode instanceof ContentDto) {
-                    BenefitDto b = new BenefitDto();
-                    b.setBenefitName(name);
-                    b.setIsCheck(extractIsCheck(value)); 
-                    ((ContentDto) parentNode).getBenefits().add(b);
-                    return; 
-                }
-                
-                // Các Node lá còn lại: Bắn thẳng vào Field thông qua Annotation Reflection (Bất kể prefix là gì)
-                ExcelReflectionUtils.injectValue(parentNode, name, value);
-            }
-
-        }, packageHeaderRowIndex);
-
-        return ResponseEntity.ok(result);
-    } catch (Exception e) {
-        e.printStackTrace();
-        return ResponseEntity.internalServerError().body("Lỗi: " + e.getMessage());
-    }
-}
-
-
-
-
-@RestController
-@RequestMapping("/api/excel")
-public class ExcelUploadController {
-
-    @Autowired
-    private ExcelObjectMappingService excelService;
-
-    // Giả lập một Object lấy từ DB
-    @Data
-    class ConfigRule {
-        private String targetField; // Tên biến trong Java
-        private List<String> matchKeywords; // Danh sách từ khóa
-        
-        public ConfigRule(String targetField, List<String> matchKeywords) {
-            this.targetField = targetField;
-            this.matchKeywords = matchKeywords;
-        }
-    }
-
-    @PostMapping("/upload")
-    public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
+    @PostMapping("/upload-employees")
+    public ResponseEntity<?> uploadEmployees(@RequestParam("file") MultipartFile file) {
         try {
-            // Bước 1: Fetch danh sách cấu hình từ Database/API
-            List<ConfigRule> rulesFromDb = Arrays.asList(
-                new ConfigRule("companyName", Arrays.asList("Tên công ty", "Đơn vị chủ quản")),
-                new ConfigRule("calculateBasedOnSalary", Arrays.asList("Tính tiền", "dựa trên lương")),
-                new ConfigRule("averageMonthlySalary", Arrays.asList("Lương trung bình", "Mức lương")),
-                new ConfigRule("products", Arrays.asList("Sản phẩm", "Product")),
-                new ConfigRule("contents", Arrays.asList("Nội dung", "Quyền lợi chính")),
-                new ConfigRule("benefits", Arrays.asList("Quyền lợi", "Phụ cấp"))
-            );
+            // 1. Lưu file xuống Server trước
+            Path savedFilePath = fileStorageService.storeFile(file);
 
-            // Bước 2: Build Từ điển (Map) từ List Object
-            Map<String, List<String>> dynamicDictionary = new HashMap<>();
-            for (ConfigRule rule : rulesFromDb) {
-                dynamicDictionary.put(rule.getTargetField(), rule.getMatchKeywords());
+            File convFile = savedFilePath.toFile();
+            file.transferTo(convFile);
+
+            List<EmployeeDto> employees = excelListMappingService.parseExcelList(convFile, EmployeeDto.class, 0, "STT");
+
+            List<EmployeeDto> validEmployees = new ArrayList<>();
+            List<EmployeeDto> errorEmployees = new ArrayList<>();
+
+            // Validate dữ liệu cực kỳ dễ dàng
+            for (EmployeeDto emp : employees) {
+                if (emp.getFullName() == null || emp.getFullName().isEmpty()) {
+                    emp.addError("Tên nhân viên không được để trống.");
+                }
+                if (emp.getSalary() != null && emp.getSalary() < 0) {
+                    emp.addError("Mức lương không được là số âm.");
+                }
+
+                if (emp.isValid()) {
+                    validEmployees.add(emp);
+                    // Thực hiện lưu Database...
+                } else {
+                    errorEmployees.add(emp);
+                }
             }
 
-            // Bước 3: Truyền file và Từ điển vào Engine xử lý
-            int packageHeaderRowIndex = 6; 
-            PolicyDto result = excelService.parseExcelByDictionary(
-                    file, 
-                    packageHeaderRowIndex, 
-                    dynamicDictionary
-            );
-            
-            return ResponseEntity.ok(result);
+            // Nếu có lỗi, trả thẳng danh sách lỗi về Frontend kèm số dòng
+            if (!errorEmployees.isEmpty()) {
+                return ResponseEntity.badRequest().body(errorEmployees);
+            /* Kết quả JSON Frontend nhận được:
+               {
+                 "excelRowNumber": 4,
+                 "employeeId": "NV02",
+                 "importErrors": ["Mức lương không được là số âm."],
+                 "isValid": false
+               }
+            */
+            }
+
+            return ResponseEntity.ok("Import thành công " + validEmployees.size() + " nhân viên.");
+
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.internalServerError().body("Lỗi: " + e.getMessage());
         }
-    }
-}
-
-@PostMapping("/upload")
-public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
-    try {
-        // Cấu hình từ Database (Hoặc Admin Dashboard)
-        Map<String, FieldRule> dynamicDictionary = new HashMap<>();
-
-        // Ví dụ 1: Map theo Index chính xác
-        // Tên công ty luôn nằm ở Dòng số 0 (Row Index = 0). Quét theo ROW. Trả về String.
-        dynamicDictionary.put("companyName", FieldRule.builder()
-            .index(0)
-            .level(0)
-            .direction(FieldRule.Direction.ROW)
-            .dataType(String.class)
-            .build());
-
-        // Ví dụ 2: Map theo Name tương đối
-        // Lương trung bình nằm ở dòng nào không rõ, nhưng chứa chữ "Lương trung bình". Trả về Long.
-        dynamicDictionary.put("averageMonthlySalary", FieldRule.builder()
-            .name("Lương trung bình")
-            .level(2)
-            .direction(FieldRule.Direction.ROW)
-            .dataType(Long.class)
-            .build());
-
-        // Ví dụ 3: Map theo Hướng COLUMN
-        // Bạn muốn quét tên của Gói (Package 1, Package 2) nằm trên Header Cột (Ví dụ cột có chữ "Gói")
-        dynamicDictionary.put("packageName", FieldRule.builder()
-            .name("Gói")
-            .level(1)
-            .direction(FieldRule.Direction.COLUMN)
-            .dataType(String.class)
-            .build());
-            
-        // Ví dụ 4: Khởi tạo Collection (Danh sách Sản phẩm)
-        dynamicDictionary.put("products", FieldRule.builder()
-            .name("Sản phẩm")
-            .level(2)
-            .direction(FieldRule.Direction.ROW)
-            .build());
-
-        // Chạy Engine
-        PolicyDto result = excelService.parseExcelByDictionary(file, 6, dynamicDictionary);
-        return ResponseEntity.ok(result);
-
-    } catch (Exception e) {
-        return ResponseEntity.internalServerError().body("Lỗi: " + e.getMessage());
     }
 }
 

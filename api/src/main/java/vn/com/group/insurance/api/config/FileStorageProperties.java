@@ -1,4 +1,4 @@
-package com.example.filemodule.config;
+package vn.com.group.insurance.api.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;

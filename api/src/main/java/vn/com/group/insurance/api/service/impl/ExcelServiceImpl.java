@@ -142,147 +142,6 @@ public class ExcelServiceImpl implements ExcelService {
         return excelData;
     }
 
-//    public List<PackageDto> parseExcel(MultipartFile file) throws Exception {
-//        List<PackageDto> packages = new ArrayList<>();
-//
-//        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
-//            Sheet sheet = workbook.getSheetAt(0);
-//            Row headerRow = sheet.getRow(0);
-//
-//            if (headerRow == null) return packages;
-//
-//            int numCols = headerRow.getLastCellNum();
-//
-//            // Duyệt từng cột
-//            for (int colIndex = 1; colIndex < numCols; colIndex++) {
-//                String packageName = getCellValueAsString(headerRow.getCell(colIndex));
-//                if (packageName.isEmpty()) continue;
-//
-//                PackageDto pkg = new PackageDto();
-//                pkg.setPackageName(packageName);
-//
-//                pkg.setEmployeeGroup(getCellValueAsString(sheet.getRow(1).getCell(colIndex)));
-//                pkg.setEmployeeCount(parseInteger(getCellValueAsString(sheet.getRow(2).getCell(colIndex))));
-//                pkg.setOccupationalGroup(getCellValueAsString(sheet.getRow(3).getCell(colIndex)));
-//
-//                ProductDto currentProduct = null;
-//                ContentDto currentContent = null; // Cờ lưu trữ nội dung hiện tại đang xử lý
-//
-//                for (int rowIndex = 4; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
-//                    Row row = sheet.getRow(rowIndex);
-//                    if (row == null) continue;
-//
-//                    String rowHeader = getCellValueAsString(row.getCell(0)).trim();
-//                    String cellValue = getCellValueAsString(row.getCell(colIndex)).trim();
-//
-//                    if (rowHeader.isEmpty() || rowHeader.equalsIgnoreCase("NaN")) continue;
-//
-//                    // Parse Tổng kết
-//                    if (rowHeader.equalsIgnoreCase("Tổng số tiền")) {
-//                        pkg.setTotalAmount(parseLong(cellValue));
-//                    } else if (rowHeader.contains("tiền trung bình")) {
-//                        pkg.setAverageAmount(parseLong(cellValue));
-//                    }
-//                    // Parse Sản phẩm và Nội dung
-//                    else if (rowHeader.startsWith("Gói Sản phẩm")) {
-//                        if (!rowHeader.contains("_")) {
-//                            // Tạo sản phẩm mới
-//                            if (currentProduct == null || !currentProduct.getProductName().equals(rowHeader)) {
-//                                currentProduct = new ProductDto();
-//                                currentProduct.setProductName(rowHeader);
-//                                currentProduct.setIsCheck(parseBoolean(cellValue));
-//                                pkg.getProducts().add(currentProduct);
-//                                currentContent = null; // Reset current content khi qua SP mới
-//                            } else {
-//                                // Gặp lại tên SP cũ nhưng mang giá trị tiền tệ (giống dòng 9 file gốc)
-//                                // Xử lý như một nội dung mặc định của SP
-//                                currentContent = new ContentDto();
-//                                currentContent.setContentName(rowHeader);
-//                                currentContent.setContentValue(cellValue);
-//                                currentProduct.getContents().add(currentContent);
-//                            }
-//                        } else {
-//                            // Các thuộc tính con của sản phẩm
-//                            if (rowHeader.contains("Tính Tiền dựa trên lương") || rowHeader.contains("Tính tiền")) {
-//                                currentProduct.setCalculateBasedOnSalary(parseBoolean(cellValue));
-//                            } else if (rowHeader.contains("Lương trung bình tháng")) {
-//                                currentProduct.setAverageMonthlySalary(parseLong(cellValue));
-//                            } else if (rowHeader.contains("Số tháng")) {
-//                                currentProduct.setNumberOfMonths(parseInteger(cellValue));
-//                            } else if (rowHeader.contains("Nội dung")) {
-//                                // Khởi tạo một đối tượng Content mới
-//                                currentContent = new ContentDto();
-//                                currentContent.setContentName(rowHeader);
-//                                currentContent.setContentValue(cellValue);
-//                                currentProduct.getContents().add(currentContent);
-//                            }
-//                        }
-//                    }
-//                    // Parse Quyền lợi
-//                    else if (rowHeader.startsWith("Quyền lợi")) {
-//                        BenefitDto benefit = new BenefitDto();
-//                        benefit.setBenefitName(rowHeader);
-//                        benefit.setIsCheck(parseBoolean(cellValue));
-//
-//                        if (currentProduct != null) {
-//                            if (currentContent != null) {
-//                                // Nếu đang duyệt ở bên trong một "Nội dung", add quyền lợi vào nội dung đó
-//                                currentContent.getBenefits().add(benefit);
-//                            } else {
-//                                // Nếu sản phẩm không có chia "Nội dung" (như Gói SP 1), add vào quyền lợi chung
-//                                currentProduct.getGeneralBenefits().add(benefit);
-//                            }
-//                        }
-//                    }
-//                }
-//                packages.add(pkg);
-//            }
-//        }
-//        return packages;
-//    }
-//
-//    /* ====== CÁC HÀM TIỆN ÍCH CHUYỂN ĐỔI DỮ LIỆU ====== */
-//
-//    private String getCellValueAsString(Cell cell) {
-//        if (cell == null) return "";
-//        switch (cell.getCellType()) {
-//            case STRING:
-//                return cell.getStringCellValue();
-//            case NUMERIC:
-//                // Dùng BigDecimal để tránh bị dính ký hiệu khoa học (E) hoặc số bị dư thập phân (VD: 1.0)
-//                return BigDecimal.valueOf(cell.getNumericCellValue()).toPlainString();
-//            case BOOLEAN:
-//                return String.valueOf(cell.getBooleanCellValue());
-//            default:
-//                return "";
-//        }
-//    }
-//
-//    private Boolean parseBoolean(String value) {
-//        if (value == null || value.isEmpty()) return false;
-//        String upper = value.toUpperCase();
-//        // Quản lý cả định dạng nhị phân 0/1 và dạng chữ trong excel
-//        return upper.equals("1") || upper.equals("1.0") || upper.equals("TRUE") || upper.equals("YES");
-//    }
-//
-//    private Long parseLong(String value) {
-//        if (value == null || value.isEmpty() || value.equalsIgnoreCase("NaN")) return 0L;
-//        try {
-//            return new BigDecimal(value).longValue();
-//        } catch (Exception e) {
-//            return 0L;
-//        }
-//    }
-//
-//    private Integer parseInteger(String value) {
-//        if (value == null || value.isEmpty() || value.equalsIgnoreCase("NaN")) return 0;
-//        try {
-//            return new BigDecimal(value).intValue();
-//        } catch (Exception e) {
-//            return 0;
-//        }
-//    }
-
     @Override
     public List<PackageDto> parseExcelDynamic(MultipartFile file) throws Exception {
         List<PackageDto> packages = new ArrayList<>();
@@ -425,11 +284,11 @@ public class ExcelServiceImpl implements ExcelService {
                     if (isParentNode) {
                         // Truyền shortName thay vì cleanLabel
                         Object newNode = mapper.createParentNode(currentLogicDepth, shortName, cellValue);
-                        mapper.linkNode(currentLogicDepth, newNode, parentNode);
+                        mapper.linkNode(newNode, parentNode);
                         stack.push(new NodeStackItem(currentIndent, currentLogicDepth, newNode));
                     } else {
                         // Truyền shortName thay vì cleanLabel
-                        mapper.processLeaf(currentLogicDepth, parentNode, shortName, cellValue);
+                        mapper.processLeaf(parentNode, shortName, cellValue);
                     }
                 }
                 resultList.add(rootNode);
@@ -445,86 +304,138 @@ public class ExcelServiceImpl implements ExcelService {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
 
-            // 1. Quét các dòng trước packageHeaderRowIndex để lấy thuộc tính Policy
-            // Giả sử cột B (index 1) chứa giá trị cho Policy
+            // 1. Đọc Policy Properties (Giữ nguyên logic cũ)
             for (int i = 0; i < packageHeaderRowIndex; i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
-
                 String label = getCellValueAsString(row.getCell(0)).trim();
                 if (label.isEmpty() || label.equalsIgnoreCase("NaN")) continue;
-
                 Object value = parseDynamicValue(getCellValueAsString(row.getCell(1)).trim());
-
-                // Dùng Reflection để tự động map vào PolicyDto
                 ExcelReflectionUtils.injectValue(policy, label, value);
             }
 
-            // 2. Quét các Package từ packageHeaderRowIndex trở xuống
             Row packageHeaderRow = sheet.getRow(packageHeaderRowIndex);
             if (packageHeaderRow == null) return policy;
-
             int numCols = packageHeaderRow.getLastCellNum();
 
+            // 2. Đọc danh sách Package
             for (int colIndex = 1; colIndex < numCols; colIndex++) {
                 String packageName = getCellValueAsString(packageHeaderRow.getCell(colIndex)).trim();
                 if (packageName.isEmpty()) continue;
 
-                // Tạo Root Node cho Package
                 R rootNode = mapper.createRootNode(packageName);
 
-                Stack<NodeStackItem> stack = new Stack<>();
-                stack.push(new NodeStackItem(-1, 0, rootNode));
+                // Map lưu trữ Node đang kích hoạt dựa trên độ sâu (số lượng dấu "_")
+                // Root (Package) luôn mặc định nằm ở độ sâu -1
+                Map<Integer, Object> activeNodes = new HashMap<>();
+                activeNodes.put(-1, rootNode);
 
                 for (int rowIndex = packageHeaderRowIndex + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                     Row row = sheet.getRow(rowIndex);
                     if (row == null) continue;
 
-                    Cell labelCell = row.getCell(0);
-                    String rawLabel = getCellValueAsString(labelCell);
-                    if (rawLabel.trim().isEmpty() || rawLabel.trim().equalsIgnoreCase("NaN")) continue;
+                    String rawLabel = getCellValueAsString(row.getCell(0)).trim();
+                    if (rawLabel.isEmpty() || rawLabel.equalsIgnoreCase("NaN")) continue;
 
-                    int currentIndent = getCellIndent(labelCell);
-                    String cleanLabel = rawLabel.trim();
-                    String shortName = getShortName(cleanLabel);
-
+                    String shortName = getShortName(rawLabel);
                     Object cellValue = parseDynamicValue(getCellValueAsString(row.getCell(colIndex)).trim());
 
+                    // THUẬT TOÁN ĐẾM DELIMITER ĐỂ TÌM ĐỘ SÂU
+                    int currentDepth = countDelimiters(rawLabel);
+
+                    // LOOKAHEAD: Xem dòng tiếp theo có chìm sâu hơn không (nhiều dấu _ hơn)
                     Cell nextCell = getNextValidCell(sheet, rowIndex);
-                    int nextIndent = nextCell != null ? getCellIndent(nextCell) : -1;
-                    boolean isParentNode = nextIndent > currentIndent;
-
-                    while (!stack.isEmpty() && stack.peek().indentLevel >= currentIndent) {
-                        stack.pop();
+                    int nextDepth = -1;
+                    if (nextCell != null) {
+                        nextDepth = countDelimiters(getCellValueAsString(nextCell).trim());
                     }
-                    if (stack.isEmpty()) stack.push(new NodeStackItem(-1, 0, rootNode));
 
-                    NodeStackItem parentItem = stack.peek();
-                    Object parentNode = parentItem.nodeObject;
-                    int currentLogicDepth = parentItem.logicDepth + 1;
+                    boolean isParentNode = nextDepth > currentDepth;
+
+                    // TÌM NODE CHA GẦN NHẤT (Quét lùi từ độ sâu hiện tại về -1)
+                    Object parentNode = getNearestActiveParent(activeNodes, currentDepth);
 
                     if (isParentNode) {
-                        Object newNode = mapper.createParentNode(currentLogicDepth, shortName, cellValue);
-                        mapper.linkNode(currentLogicDepth, newNode, parentNode);
-                        stack.push(new NodeStackItem(currentIndent, currentLogicDepth, newNode));
+                        // Khởi tạo và gắn Node con vào Node cha
+                        Object newNode = mapper.createParentNode(parentNode, shortName, cellValue);
+                        if (newNode != null) {
+                            mapper.linkNode(newNode, parentNode);
+                            activeNodes.put(currentDepth, newNode);
+
+                            // Dọn dẹp rác của các nhánh sâu hơn trước đó
+                            activeNodes.keySet().removeIf(level -> level > currentDepth);
+                        }
                     } else {
-                        mapper.processLeaf(currentLogicDepth, parentNode, shortName, cellValue);
+                        // Gọi hàm xử lý Node Lá
+                        mapper.processLeaf(parentNode, shortName, cellValue);
                     }
                 }
-                // (Ép kiểu an toàn) Thêm Package vừa đọc được vào Policy
-                // Trong môi trường Generic chặt chẽ, ta phải cast qua Object trước nếu R không kế thừa PackageDto
                 policy.getPackages().add((PackageDto) rootNode);
             }
         }
         return policy;
     }
 
-    // --- Hàm mới: Cắt chuỗi để loại bỏ tiền tố ---
+    // --- CÁC HÀM XỬ LÝ MỚI ---
+
+    // Đếm số lượng dấu gạch dưới "_" để định vị cấp bậc
+    private int countDelimiters(String text) {
+        int count = 0;
+        for (char c : text.toCharArray()) {
+            if (c == '_') count++;
+        }
+        return count;
+    }
+
+    // Quét ngược về độ sâu trước đó để tìm cha hợp lệ
+    private Object getNearestActiveParent(Map<Integer, Object> activeNodes, int currentDepth) {
+        for (int i = currentDepth - 1; i >= -1; i--) {
+            if (activeNodes.containsKey(i)) {
+                return activeNodes.get(i);
+            }
+        }
+        return activeNodes.get(-1); // Trả về Root nếu không tìm thấy
+    }
+
     private String getShortName(String fullLabel) {
         if (fullLabel == null || fullLabel.isEmpty()) return "";
-        // Nếu chuỗi có dấu "_" thì cắt ra thành mảng, lấy phần tử cuối cùng
         String[] parts = fullLabel.split("_");
         return parts[parts.length - 1].trim();
+    }
+
+    private Cell getNextValidCell(Sheet sheet, int currentRowIndex) {
+        for (int i = currentRowIndex + 1; i <= sheet.getLastRowNum(); i++) {
+            Row row = sheet.getRow(i);
+            if (row != null) {
+                Cell cell = row.getCell(0);
+                String label = getCellValueAsString(cell);
+                if (label != null && !label.trim().isEmpty() && !label.trim().equalsIgnoreCase("NaN")) {
+                    return cell;
+                }
+            }
+        }
+        return null;
+    }
+
+    // (Giữ nguyên các hàm parseDynamicValue, getCellValueAsString giống lúc trước để chống số khoa học 1.2E8)
+    private Object parseDynamicValue(String value) {
+        if (value == null || value.isEmpty()) return null;
+        String upper = value.toUpperCase();
+        if (upper.equals("TRUE") || upper.equals("FALSE")) return Boolean.parseBoolean(upper);
+        try {
+            BigDecimal bd = new BigDecimal(value).stripTrailingZeros();
+            return bd.scale() <= 0 ? bd.longValueExact() : bd.doubleValue();
+        } catch (Exception e) { return value; }
+    }
+
+    private String getCellValueAsString(Cell cell) {
+        if (cell == null) return "";
+        switch (cell.getCellType()) {
+            case STRING: return cell.getStringCellValue();
+            case NUMERIC: return BigDecimal.valueOf(cell.getNumericCellValue()).stripTrailingZeros().toPlainString();
+            case BOOLEAN: return String.valueOf(cell.getBooleanCellValue());
+            default: return "";
+        }
     }
 
     /**
@@ -566,209 +477,4 @@ public class ExcelServiceImpl implements ExcelService {
         // 1 bậc Format Indent trong Excel Tool tương đương khoảng 2 spaces
         return (formatIndent * 2) + spaceCount;
     }
-
-    private Cell getNextValidCell(Sheet sheet, int currentRowIndex) {
-        for (int i = currentRowIndex + 1; i <= sheet.getLastRowNum(); i++) {
-            Row row = sheet.getRow(i);
-            if (row != null) {
-                Cell cell = row.getCell(0);
-                String label = getCellValueAsString(cell);
-                if (label != null && !label.trim().isEmpty() && !label.trim().equalsIgnoreCase("NaN")) {
-                    return cell;
-                }
-            }
-        }
-        return null;
-    }
-
-    // Các hàm Parse (Giữ nguyên)
-    private Object parseDynamicValue(String value) {
-        if (value == null || value.isEmpty()) return null;
-        String upper = value.toUpperCase();
-        if (upper.equals("TRUE") || upper.equals("FALSE")) return Boolean.parseBoolean(upper);
-
-        try {
-            // Dùng stripTrailingZeros() để số "120000000.0" đưa về đúng tỷ lệ chuẩn
-            BigDecimal bd = new BigDecimal(value).stripTrailingZeros();
-
-            // Nếu không có phần thập phân thì map làm Long thay vì Double
-            if (bd.scale() <= 0) {
-                return bd.longValueExact();
-            } else {
-                return bd.doubleValue();
-            }
-        } catch (Exception e) {
-            return value;
-        }
-    }
-
-    private String getCellValueAsString(Cell cell) {
-        if (cell == null) return "";
-        return switch (cell.getCellType()) {
-            case STRING -> cell.getStringCellValue();
-            case NUMERIC ->
-                // Dùng toPlainString() để không bao giờ sinh ra chữ E
-                    BigDecimal.valueOf(cell.getNumericCellValue()).stripTrailingZeros().toPlainString();
-            case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
-            default -> "";
-        };
-    }
 }
-
-package com.example.excelapi.service;
-
-import com.example.excelapi.dto.PolicyDto;
-import com.example.excelapi.mapper.ExcelTreeMapper;
-import com.example.excelapi.util.ExcelReflectionUtils;
-import org.apache.poi.ss.usermodel.*;
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.Map;
-
-@Service
-public class ExcelReaderService {
-
-    public <R> PolicyDto parseExcelWithPolicy(MultipartFile file, ExcelTreeMapper<R> mapper, int packageHeaderRowIndex) throws Exception {
-        PolicyDto policy = new PolicyDto();
-
-        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
-            Sheet sheet = workbook.getSheetAt(0);
-            
-            // 1. Đọc Policy Properties (Giữ nguyên logic cũ)
-            for (int i = 0; i < packageHeaderRowIndex; i++) {
-                Row row = sheet.getRow(i);
-                if (row == null) continue;
-                String label = getCellValueAsString(row.getCell(0)).trim();
-                if (label.isEmpty() || label.equalsIgnoreCase("NaN")) continue;
-                Object value = parseDynamicValue(getCellValueAsString(row.getCell(1)).trim());
-                ExcelReflectionUtils.injectValue(policy, label, value);
-            }
-
-            Row packageHeaderRow = sheet.getRow(packageHeaderRowIndex);
-            if (packageHeaderRow == null) return policy;
-            int numCols = packageHeaderRow.getLastCellNum();
-
-            // 2. Đọc danh sách Package
-            for (int colIndex = 1; colIndex < numCols; colIndex++) {
-                String packageName = getCellValueAsString(packageHeaderRow.getCell(colIndex)).trim();
-                if (packageName.isEmpty()) continue;
-
-                R rootNode = mapper.createRootNode(packageName);
-                
-                // Map lưu trữ Node đang kích hoạt dựa trên độ sâu (số lượng dấu "_")
-                // Root (Package) luôn mặc định nằm ở độ sâu -1
-                Map<Integer, Object> activeNodes = new HashMap<>();
-                activeNodes.put(-1, rootNode); 
-
-                for (int rowIndex = packageHeaderRowIndex + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
-                    Row row = sheet.getRow(rowIndex);
-                    if (row == null) continue;
-
-                    String rawLabel = getCellValueAsString(row.getCell(0)).trim();
-                    if (rawLabel.isEmpty() || rawLabel.equalsIgnoreCase("NaN")) continue;
-
-                    String shortName = getShortName(rawLabel);
-                    Object cellValue = parseDynamicValue(getCellValueAsString(row.getCell(colIndex)).trim());
-
-                    // THUẬT TOÁN ĐẾM DELIMITER ĐỂ TÌM ĐỘ SÂU
-                    int currentDepth = countDelimiters(rawLabel);
-                    
-                    // LOOKAHEAD: Xem dòng tiếp theo có chìm sâu hơn không (nhiều dấu _ hơn)
-                    Cell nextCell = getNextValidCell(sheet, rowIndex);
-                    int nextDepth = -1;
-                    if (nextCell != null) {
-                        nextDepth = countDelimiters(getCellValueAsString(nextCell).trim());
-                    }
-
-                    boolean isParentNode = nextDepth > currentDepth;
-
-                    // TÌM NODE CHA GẦN NHẤT (Quét lùi từ độ sâu hiện tại về -1)
-                    Object parentNode = getNearestActiveParent(activeNodes, currentDepth);
-
-                    if (isParentNode) {
-                        // Khởi tạo và gắn Node con vào Node cha
-                        Object newNode = mapper.createParentNode(parentNode, shortName, cellValue);
-                        if (newNode != null) {
-                            mapper.linkNode(newNode, parentNode);
-                            activeNodes.put(currentDepth, newNode);
-                            
-                            // Dọn dẹp rác của các nhánh sâu hơn trước đó
-                            activeNodes.keySet().removeIf(level -> level > currentDepth);
-                        }
-                    } else {
-                        // Gọi hàm xử lý Node Lá
-                        mapper.processLeaf(parentNode, shortName, cellValue);
-                    }
-                }
-                policy.getPackages().add((com.example.excelapi.dto.PackageDto) rootNode); 
-            }
-        }
-        return policy;
-    }
-
-    // --- CÁC HÀM XỬ LÝ MỚI ---
-
-    // Đếm số lượng dấu gạch dưới "_" để định vị cấp bậc
-    private int countDelimiters(String text) {
-        int count = 0;
-        for (char c : text.toCharArray()) {
-            if (c == '_') count++;
-        }
-        return count;
-    }
-
-    // Quét ngược về độ sâu trước đó để tìm cha hợp lệ
-    private Object getNearestActiveParent(Map<Integer, Object> activeNodes, int currentDepth) {
-        for (int i = currentDepth - 1; i >= -1; i--) {
-            if (activeNodes.containsKey(i)) {
-                return activeNodes.get(i);
-            }
-        }
-        return activeNodes.get(-1); // Trả về Root nếu không tìm thấy
-    }
-
-    private String getShortName(String fullLabel) {
-        if (fullLabel == null || fullLabel.isEmpty()) return "";
-        String[] parts = fullLabel.split("_");
-        return parts[parts.length - 1].trim();
-    }
-
-    private Cell getNextValidCell(Sheet sheet, int currentRowIndex) {
-        for (int i = currentRowIndex + 1; i <= sheet.getLastRowNum(); i++) {
-            Row row = sheet.getRow(i);
-            if (row != null) {
-                Cell cell = row.getCell(0);
-                String label = getCellValueAsString(cell);
-                if (label != null && !label.trim().isEmpty() && !label.trim().equalsIgnoreCase("NaN")) {
-                    return cell; 
-                }
-            }
-        }
-        return null;
-    }
-    
-    // (Giữ nguyên các hàm parseDynamicValue, getCellValueAsString giống lúc trước để chống số khoa học 1.2E8)
-    private Object parseDynamicValue(String value) {
-        if (value == null || value.isEmpty()) return null;
-        String upper = value.toUpperCase();
-        if (upper.equals("TRUE") || upper.equals("FALSE")) return Boolean.parseBoolean(upper);
-        try {
-            BigDecimal bd = new BigDecimal(value).stripTrailingZeros();
-            return bd.scale() <= 0 ? bd.longValueExact() : bd.doubleValue();
-        } catch (Exception e) { return value; }
-    }
-
-    private String getCellValueAsString(Cell cell) {
-        if (cell == null) return "";
-        switch (cell.getCellType()) {
-            case STRING: return cell.getStringCellValue();
-            case NUMERIC: return BigDecimal.valueOf(cell.getNumericCellValue()).stripTrailingZeros().toPlainString();
-            case BOOLEAN: return String.valueOf(cell.getBooleanCellValue());
-            default: return "";
-        }
-    }
-}
-

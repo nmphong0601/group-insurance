@@ -16,16 +16,19 @@ public class ExcelReflectionUtils {
             if (annotation != null) {
                 // TỐI ƯU CỰC MẠNH: Map tương đối (Contains)
                 // Chỉ cần Label trên Excel CHỨA từ khóa trong Annotation là hợp lệ
-                if (excelLabel.toLowerCase().contains(annotation.value().toLowerCase())) {
-                    field.setAccessible(true);
-                    try {
-                        Object parsedValue = castToFieldType(field.getType(), value);
-                        field.set(target, parsedValue);
-                    } catch (Exception e) {
-                        System.err.println("Không thể map field: " + field.getName() + " - Lỗi: " + e.getMessage());
+                for (String keyword : annotation.keyword()) {
+                    if (excelLabel.toLowerCase().contains(keyword.toLowerCase())) {
+                        field.setAccessible(true);
+                        try {
+                            Object parsedValue = castToFieldType(field.getType(), value);
+                            field.set(target, parsedValue);
+                        } catch (Exception e) {
+                            System.err.println("Không thể map field: " + field.getName() + " - Lỗi: " + e.getMessage());
+                        }
+                        return; // Gán thành công thì dừng duyệt thuộc tính
                     }
-                    return; // Gán thành công thì dừng duyệt thuộc tính
                 }
+
             }
         }
     }

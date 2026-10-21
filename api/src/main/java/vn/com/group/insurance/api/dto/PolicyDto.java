@@ -8,29 +8,18 @@ import java.util.List;
 
 @Data
 public class PolicyDto {
-    @ExcelProperty("Tên công ty")
-    private String companyName;
 
-    @ExcelProperty("Tên công ty bán")
-    private String sellingCompanyName;
-
-    @ExcelProperty("Thời hạn hợp đồng")
-    private String contractDuration;
-
-    @ExcelProperty("Kênh buôn bán")
-    private String salesChannel;
-
-    @ExcelProperty("Tổng số tiền")
-    private Long totalAmount;
-
-    // Danh sách các Package
-    private List<PackageDto> packages = new ArrayList<>();
-}
-
-@Data
-public class PolicyDto {
     @ExcelProperty(keyword = {"Tên công ty"}, level = 0)
     private String companyName;
+
+    @ExcelProperty(keyword = {"Tên công ty bán"}, level = 0)
+    private String sellingCompanyName;
+
+    @ExcelProperty(keyword = {"Thời hạn hợp đồng"}, level = 0)
+    private String contractDuration;
+
+    @ExcelProperty(keyword = {"Kênh buôn bán"}, level = 0)
+    private String salesChannel;
 
     @ExcelProperty(keyword = {"Tổng số tiền"}, level = 0)
     private Long totalAmount;

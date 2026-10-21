@@ -1,12 +1,12 @@
-package com.example.filemodule.service;
+package vn.com.group.insurance.api.service;
 
-import com.example.filemodule.config.FileStorageProperties;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import vn.com.group.insurance.api.config.FileStorageProperties;
 
-import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.file.*;
 
