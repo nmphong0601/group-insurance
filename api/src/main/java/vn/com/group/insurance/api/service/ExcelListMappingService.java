@@ -186,3 +186,103 @@ public class ExcelListMappingService {
     }
 }
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.Date;
+import org.apache.poi.ss.usermodel.DateUtil;
+
+private Object castValue(Class<?> targetType, Object value) {
+    if (value == null) return null;
+
+    // ==========================================
+    // MỚI: XỬ LÝ NHÓM NGÀY THÁNG NĂM (DATE / TIME)
+    // ==========================================
+    if (targetType == Date.class || targetType == LocalDate.class || targetType == LocalDateTime.class) {
+        Date parsedDate = null;
+
+        // Trường hợp 1: File Excel lưu đúng định dạng Date (đã được getCellValueAsObject lấy ra)
+        if (value instanceof Date) {
+            parsedDate = (Date) value;
+        } 
+        // Trường hợp 2: Excel lưu ngày tháng dưới dạng Số (Serial Date)
+        else if (value instanceof Number) {
+            parsedDate = DateUtil.getJavaDate(((Number) value).doubleValue());
+        } 
+        // Trường hợp 3: Người dùng nhập dạng Text (Chuỗi)
+        else {
+            String dateStr = value.toString().trim();
+            // Danh sách các format thông dụng tại VN và Quốc tế
+            String[] formats = {
+                "dd/MM/yyyy", "dd-MM-yyyy", "yyyy-MM-dd", "yyyy/MM/dd", "MM/dd/yyyy", 
+                "dd/MM/yyyy HH:mm:ss", "yyyy-MM-dd HH:mm:ss"
+            };
+            
+            for (String format : formats) {
+                try {
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);
+                    if (format.contains("HH")) {
+                        LocalDateTime ldt = LocalDateTime.parse(dateStr, formatter);
+                        parsedDate = Date.from(ldt.atZone(ZoneId.systemDefault()).toInstant());
+                    } else {
+                        LocalDate ld = LocalDate.parse(dateStr, formatter);
+                        parsedDate = Date.from(ld.atStartOfDay(ZoneId.systemDefault()).toInstant());
+                    }
+                    break; // Nếu parse thành công thì dừng vòng lặp
+                } catch (DateTimeParseException ignored) {
+                    // Bỏ qua lỗi và thử format tiếp theo
+                }
+            }
+        }
+
+        // Ép kiểu Date tìm được ra đúng kiểu dữ liệu khai báo trong DTO
+        if (parsedDate != null) {
+            if (targetType == Date.class) return parsedDate;
+            if (targetType == LocalDate.class) return parsedDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+            if (targetType == LocalDateTime.class) return parsedDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        }
+        
+        System.err.println("Cảnh báo: Không thể ép giá trị '" + value + "' sang Ngày tháng.");
+        return null;
+    }
+
+    // ==========================================
+    // XỬ LÝ CÁC KIỂU CƠ BẢN CŨ (String, Number, Boolean)
+    // ==========================================
+    String s;
+    if (value instanceof Number) {
+        s = new BigDecimal(value.toString()).stripTrailingZeros().toPlainString();
+    } else {
+        s = value.toString().trim();
+        if (s.toUpperCase().contains("E")) {
+            try { s = new BigDecimal(s).stripTrailingZeros().toPlainString(); } 
+            catch (Exception ignored) {}
+        }
+    }
+    
+    if (s.isEmpty()) return null;
+
+    if (targetType == Boolean.class || targetType == boolean.class) {
+        String up = s.toUpperCase();
+        return up.equals("1") || up.equals("TRUE") || up.equals("YES") || up.equals("Y");
+    }
+
+    try {
+        if (targetType == Long.class || targetType == long.class) return new BigDecimal(s).longValue();
+        if (targetType == Integer.class || targetType == int.class) return new BigDecimal(s).intValue();
+        if (targetType == Double.class || targetType == double.class) return new BigDecimal(s).doubleValue();
+        if (targetType == Float.class || targetType == float.class) return new BigDecimal(s).floatValue();
+        if (targetType == BigDecimal.class) return new BigDecimal(s);
+    } catch (Exception e) {
+        System.err.println("Cảnh báo: Không thể ép giá trị '" + s + "' sang " + targetType.getSimpleName());
+        return null;
+    }
+
+    if (targetType == String.class) return s;
+
+    return value;
+}
+
+
