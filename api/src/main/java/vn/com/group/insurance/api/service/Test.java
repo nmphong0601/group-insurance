@@ -39,3 +39,61 @@ for (int rowIdx = packageHeaderRowIndex + 1; rowIdx <= sheet.getLastRowNum(); ro
         }
     }
 }
+
+
+
+// Thay đổi tham số truyền vào của hàm mapToProperty để lấy được instance và gọi castValue
+private boolean mapToProperty(Map<Integer, Object> activeNodes, String label, Object value, Map<String, FieldRule> dict) throws Exception {
+    String lowerLabel = label.toLowerCase();
+    
+    for (Map.Entry<Integer, Object> entry : activeNodes.entrySet()) {
+        Object obj = entry.getValue();
+        if (obj == null) continue;
+
+        for (Field field : obj.getClass().getDeclaredFields()) {
+            FieldRule rule = dict.get(field.getName());
+            if (rule != null && rule.getLevel() == entry.getKey()) {
+                for (String kw : rule.getKeywords()) {
+                    if (lowerLabel.contains(kw.toLowerCase())) {
+                        field.setAccessible(true);
+                        
+                        // TRUYỀN THÊM obj VÀ TÊN FIELD VÀO HÀM CAST
+                        Object castedValue = castValue(field.getType(), value, obj, field.getName());
+                        field.set(obj, castedValue);
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
+// Cập nhật castValue
+private Object castValue(Class<?> targetType, Object value, Object instance, String fieldName) {
+    if (value == null) return null;
+    String s = preprocessDynamicValue(value).toString();
+    
+    if (s.isEmpty()) return null;
+
+    if (targetType == Boolean.class || targetType == boolean.class) {
+        String up = s.toUpperCase();
+        return up.equals("1") || up.equals("TRUE") || up.equals("YES") || up.equals("Y");
+    }
+
+    try {
+        if (targetType == Long.class || targetType == long.class) return new BigDecimal(s).longValue();
+        if (targetType == Integer.class || targetType == int.class) return new BigDecimal(s).intValue();
+        if (targetType == Double.class || targetType == double.class) return new BigDecimal(s).doubleValue();
+    } catch (Exception e) {
+        // TỰ ĐỘNG BẮT LỖI GÁN VÀO DTO
+        if (instance instanceof CommonTreeExcelDto) {
+            ((CommonTreeExcelDto) instance).addFieldError(fieldName, "Sai định dạng số (Nhận được: '" + s + "')");
+        }
+        return null;
+    }
+
+    if (targetType == String.class) return s;
+    return value;
+}
+
