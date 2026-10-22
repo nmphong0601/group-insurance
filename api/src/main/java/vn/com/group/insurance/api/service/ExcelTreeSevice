@@ -1,0 +1,98 @@
+import org.apache.poi.ss.usermodel.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.InputStream;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+public class ExcelTreeImportService {
+
+    private final ImportDataRepository importDataRepository;
+
+    public ExcelTreeImportService(ImportDataRepository importDataRepository) {
+        this.importDataRepository = importDataRepository;
+    }
+
+    @Transactional
+    public void importTreeExcel(MultipartFile file, List<TreeConfigDTO> configList) throws Exception {
+        // Chuyển List Config thành Map để tra cứu nhanh theo RowIndex
+        // Lưu ý: Cần xác định RowIndex trong DB là 0-based hay 1-based. Apache POI mặc định là 0-based.
+        Map<Integer, TreeConfigDTO> configMap = configList.stream()
+                .collect(Collectors.toMap(TreeConfigDTO::getRowIndex, config -> config));
+
+        List<ImportData> dataToSave = new ArrayList<>();
+
+        try (InputStream is = file.getInputStream();
+             Workbook workbook = WorkbookFactory.create(is)) {
+
+            Sheet sheet = workbook.getSheetAt(0); // Lấy sheet đầu tiên
+
+            for (Row row : sheet) {
+                int currentRowIndex = row.getRowNum(); 
+                // Nếu DB lưu RowIndex bắt đầu từ 1, dùng: currentRowIndex = row.getRowNum() + 1;
+
+                // Nếu dòng hiện tại có nằm trong danh sách config
+                if (configMap.containsKey(currentRowIndex)) {
+                    TreeConfigDTO config = configMap.get(currentRowIndex);
+                    
+                    // XÁC ĐỊNH CỘT CHỨA DATA: 
+                    // Tuỳ vào file Excel tree của bạn, DataValue có thể nằm ở một cột cố định (VD: cột B - index 1)
+                    // Hoặc dịch chuyển dựa vào DataLevel. Ở đây giả sử cột chứa giá trị nằm ở index = 1.
+                    int valueColumnIndex = 1; 
+                    Cell cell = row.getCell(valueColumnIndex, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+
+                    // Đọc và format giá trị theo DataType từ config
+                    String cellValue = extractCellValue(cell, config.getDataType());
+
+                    if (cellValue != null && !cellValue.trim().isEmpty()) {
+                        ImportData importData = new ImportData();
+                        importData.setItemId(config.getRowIndex()); // Map ItemId với RowIndex
+                        importData.setDataValue(cellValue);
+                        dataToSave.add(importData);
+                    }
+                }
+            }
+        }
+
+        // Batch Insert vào Database
+        if (!dataToSave.isEmpty()) {
+            importDataRepository.saveAll(dataToSave);
+        }
+    }
+
+    /**
+     * Hàm helper để đọc giá trị Cell chính xác dựa trên DataType cấu hình trong DB
+     */
+    private String extractCellValue(Cell cell, String dataType) {
+        if (cell == null) return null;
+
+        DataFormatter formatter = new DataFormatter();
+        
+        switch (dataType.toUpperCase()) {
+            case "NUMBER":
+                if (cell.getCellType() == CellType.NUMERIC) {
+                    return String.valueOf(cell.getNumericCellValue());
+                }
+                return formatter.formatCellValue(cell);
+                
+            case "DATE":
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    // Trả về timestamp hoặc format chuỗi ngày tháng tuỳ requirement của bạn
+                    return cell.getLocalDateTimeCellValue().toString(); 
+                }
+                return formatter.formatCellValue(cell);
+                
+            case "BOOLEAN":
+                if (cell.getCellType() == CellType.BOOLEAN) {
+                    return String.valueOf(cell.getBooleanCellValue());
+                }
+                return formatter.formatCellValue(cell);
+                
+            case "STRING":
+            default:
+                return formatter.formatCellValue(cell);
+        }
+    }
+}
