@@ -285,4 +285,66 @@ private Object castValue(Class<?> targetType, Object value) {
     return value;
 }
 
+// Cập nhật tham số đầu vào
+private Object castValue(Class<?> targetType, Object value, Object instance, String fieldName) {
+    if (value == null) return null;
+
+    // ... (Giữ nguyên logic parse Date/Time đã viết trước đó) ...
+    // Khúc try-catch parse Date, nếu sinh lỗi DateTimeParseException:
+    /*
+        } catch (DateTimeParseException ignored) {
+            // Không break, để vòng lặp chạy tiếp
+        }
+    */
+    // Sau khi kết thúc vòng lặp Date mà parsedDate vẫn null, báo lỗi:
+    /*
+        if (parsedDate == null) {
+            logError(instance, fieldName, "Sai định dạng Ngày tháng (Nhận được: '" + value + "')");
+            return null;
+        }
+    */
+
+    String s;
+    if (value instanceof Number) {
+        s = new BigDecimal(value.toString()).stripTrailingZeros().toPlainString();
+    } else {
+        s = value.toString().trim();
+        if (s.toUpperCase().contains("E")) {
+            try { s = new BigDecimal(s).stripTrailingZeros().toPlainString(); } 
+            catch (Exception ignored) {}
+        }
+    }
+    
+    if (s.isEmpty()) return null;
+
+    if (targetType == Boolean.class || targetType == boolean.class) {
+        String up = s.toUpperCase();
+        return up.equals("1") || up.equals("TRUE") || up.equals("YES") || up.equals("Y");
+    }
+
+    try {
+        if (targetType == Long.class || targetType == long.class) return new BigDecimal(s).longValue();
+        if (targetType == Integer.class || targetType == int.class) return new BigDecimal(s).intValue();
+        if (targetType == Double.class || targetType == double.class) return new BigDecimal(s).doubleValue();
+        if (targetType == Float.class || targetType == float.class) return new BigDecimal(s).floatValue();
+        if (targetType == BigDecimal.class) return new BigDecimal(s);
+    } catch (Exception e) {
+        // TỰ ĐỘNG BẮT LỖI GÁN VÀO DTO
+        logError(instance, fieldName, "Sai định dạng số (Nhận được: '" + s + "')");
+        return null;
+    }
+
+    if (targetType == String.class) return s;
+
+    return value;
+}
+
+// Hàm phụ trợ ghi log lỗi
+private void logError(Object instance, String fieldName, String errorMsg) {
+    if (instance instanceof CommonExcelDto) {
+        ((CommonExcelDto) instance).addFieldError(fieldName, errorMsg);
+    } else {
+        System.err.println("Cảnh báo Field [" + fieldName + "]: " + errorMsg);
+    }
+}
 
