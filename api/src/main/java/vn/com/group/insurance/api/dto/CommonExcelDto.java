@@ -28,3 +28,45 @@ public abstract class CommonExcelDto {
         this.isValid = false;
     }
 }
+
+package com.example.excelapi.dto;
+
+import com.example.excelapi.annotation.ExcelProperty;
+import lombok.Data;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+@Data
+public abstract class CommonExcelDto {
+    
+    private int excelRowNumber; // Vị trí dòng trên Excel
+    private boolean isValid = true; 
+
+    // Lỗi cấp độ toàn cục của dòng (Ví dụ: Dòng thiếu dữ liệu bắt buộc để xử lý)
+    private List<String> globalErrors = new ArrayList<>();
+
+    // Lỗi cấp độ Thuộc tính (Key: Tên biến, Value: Danh sách lỗi)
+    private Map<String, List<String>> fieldErrors = new LinkedHashMap<>();
+
+    @ExcelProperty({"Ghi chú", "Note"})
+    private String note;
+
+    /**
+     * Ghi nhận lỗi cho một Field cụ thể
+     */
+    public void addFieldError(String fieldName, String errorMsg) {
+        this.fieldErrors.computeIfAbsent(fieldName, k -> new ArrayList<>()).add(errorMsg);
+        this.isValid = false;
+    }
+
+    /**
+     * Ghi nhận lỗi chung cho cả dòng
+     */
+    public void addGlobalError(String errorMsg) {
+        this.globalErrors.add(errorMsg);
+        this.isValid = false;
+    }
+}
+
