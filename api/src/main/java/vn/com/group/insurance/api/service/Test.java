@@ -97,3 +97,139 @@ private Object castValue(Class<?> targetType, Object value, Object instance, Str
     return value;
 }
 
+
+package com.example.excelapi.service;
+
+import com.example.excelapi.annotation.ExcelProperty;
+import com.example.excelapi.dto.CommonExcelDto;
+import org.apache.poi.ss.usermodel.*;
+import org.springframework.stereotype.Service;
+
+import java.io.File;
+import java.lang.reflect.Field;
+import java.math.BigDecimal;
+import java.util.*;
+
+@Service
+public class ExcelListMappingService {
+
+    // Đã xóa tham số primaryColumnName
+    public <T> List<T> parseExcelList(File file, Class<T> clazz, int headerRowIndex) throws Exception {
+        List<T> resultList = new ArrayList<>();
+
+        try (Workbook workbook = WorkbookFactory.create(file)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            Row headerRow = sheet.getRow(headerRowIndex);
+            if (headerRow == null) return resultList;
+
+            Map<Integer, Field> columnIndexToFieldMap = new HashMap<>();
+            
+            // 2 Biến lưu trữ vị trí và Kiểu dữ liệu của cột Primary
+            int primaryColumnIndex = -1; 
+            Field primaryField = null;   
+            
+            List<Field> allFields = getAllFields(clazz);
+            
+            // ==========================================
+            // BƯỚC 1: LẬP BẢN ĐỒ CỘT & TÌM PRIMARY COLUMN
+            // ==========================================
+            for (Cell cell : headerRow) {
+                String headerName = getCellValueAsString(cell).trim().toLowerCase();
+                if (headerName.isEmpty()) continue;
+
+                for (Field field : allFields) {
+                    if (field.isAnnotationPresent(ExcelProperty.class)) {
+                        ExcelProperty ann = field.getAnnotation(ExcelProperty.class);
+                        for (String kw : ann.value()) {
+                            if (headerName.contains(kw.toLowerCase())) {
+                                field.setAccessible(true);
+                                columnIndexToFieldMap.put(cell.getColumnIndex(), field);
+                                
+                                // Nếu Field này được cấu hình là Primary -> Ghi nhớ lại
+                                if (ann.primary()) {
+                                    primaryColumnIndex = cell.getColumnIndex();
+                                    primaryField = field;
+                                }
+                                break; 
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // BƯỚC 2: QUÉT DỮ LIỆU TỪNG DÒNG
+            // ==========================================
+            for (int rowIndex = headerRowIndex + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                Row row = sheet.getRow(rowIndex);
+                
+                // Nếu Excel trả về dòng null hoàn toàn -> Dừng
+                if (row == null) break; 
+
+                // KIỂM TRA PRIMARY COLUMN: VỪA KIỂM TRA TRỐNG, VỪA KIỂM TRA KIỂU DỮ LIỆU
+                if (primaryColumnIndex != -1 && primaryField != null) {
+                    Cell primaryCell = row.getCell(primaryColumnIndex);
+                    
+                    // Nếu ô không tồn tại hoặc rỗng hoàn toàn
+                    if (primaryCell == null || primaryCell.getCellType() == CellType.BLANK) {
+                        System.out.println("Dừng đọc file tại dòng " + (rowIndex + 1) + " do ô Primary trống.");
+                        break;
+                    }
+
+                    Object rawPrimaryValue = getCellValueAsObject(primaryCell);
+                    
+                    // Mượn hàm castValue để "ép kiểu nháp". 
+                    // Truyền null vào instance để hàm castValue không tự động ghi log lỗi vào DTO (vì ta chưa tạo DTO)
+                    Object castedPrimary = castValue(primaryField.getType(), rawPrimaryValue, null, primaryField.getName());
+                    
+                    // Nếu ép kiểu thất bại (trả về null) HOẶC là chuỗi rỗng -> Đó là rác, dừng đọc file ngay.
+                    if (castedPrimary == null || castedPrimary.toString().trim().isEmpty()) {
+                        System.out.println("Dừng đọc file tại dòng " + (rowIndex + 1) + " do dữ liệu Primary sai kiểu hoặc bị rỗng.");
+                        break;
+                    }
+                }
+
+                // ==========================================
+                // NẾU PASS QUA BÀI TEST PRIMARY -> TIẾN HÀNH MAP DỮ LIỆU
+                // ==========================================
+                T instance = clazz.getDeclaredConstructor().newInstance();
+                boolean isRowEmpty = true;
+
+                if (instance instanceof CommonExcelDto) {
+                    ((CommonExcelDto) instance).setExcelRowNumber(row.getRowNum() + 1);
+                }
+
+                for (Map.Entry<Integer, Field> entry : columnIndexToFieldMap.entrySet()) {
+                    int colIndex = entry.getKey();
+                    Field field = entry.getValue();
+                    Cell cell = row.getCell(colIndex);
+
+                    // Chốt chặn Formula (Đã làm ở bước trước)
+                    if (cell != null && cell.getCellType() == CellType.FORMULA) {
+                        if (instance instanceof CommonExcelDto) {
+                            ((CommonExcelDto) instance).addFieldError(field.getName(), "Không được sử dụng công thức (Formula).");
+                        }
+                        isRowEmpty = false;
+                        continue;
+                    }
+
+                    Object cellValue = getCellValueAsObject(cell);
+
+                    if (cellValue != null && !cellValue.toString().trim().isEmpty()) {
+                        isRowEmpty = false; 
+                        Object castedValue = castValue(field.getType(), cellValue, instance, field.getName());
+                        field.set(instance, castedValue);
+                    }
+                }
+
+                if (isRowEmpty) break;
+                
+                resultList.add(instance);
+            }
+        }
+        return resultList;
+    }
+
+    // (Giữ nguyên các hàm phụ trợ: getAllFields, castValue, getCellValueAsObject, getCellValueAsString)
+}
+
