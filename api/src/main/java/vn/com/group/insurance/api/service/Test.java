@@ -438,5 +438,55 @@ private int[] getPrintAreaBoundary(Workbook workbook, Sheet sheet) {
     return null; // Không có Print Area
 }
 
+import org.apache.poi.ss.usermodel.*;
+
+/**
+ * Kiểm tra xem một Sheet có bị rỗng (Không có dòng nào chứa dữ liệu thực) hay không.
+ *
+ * @param sheet Đối tượng Sheet cần kiểm tra
+ * @return true nếu sheet null hoặc hoàn toàn không có dữ liệu; false nếu có ít nhất 1 ô chứa dữ liệu
+ */
+public boolean isSheetEmpty(Sheet sheet) {
+    // 1. Kiểm tra cấu trúc rỗng
+    if (sheet == null) {
+        return true; 
+    }
+    
+    // Nếu getPhysicalNumberOfRows() = 0, nghĩa là sheet hoàn toàn trắng tinh (kể cả định dạng cũng không có)
+    if (sheet.getPhysicalNumberOfRows() == 0) {
+        return true; 
+    }
+
+    // 2. Kiểm tra dữ liệu ảo (Dòng có tồn tại trong metadata nhưng không có chữ/số bên trong)
+    // POI duyệt từ dòng đầu tiên đến dòng cuối cùng mà nó ghi nhận
+    for (int i = 0; i <= sheet.getLastRowNum(); i++) {
+        Row row = sheet.getRow(i);
+        if (row == null) {
+            continue;
+        }
+
+        // Quét từng ô trong dòng đó
+        for (int j = 0; j < row.getLastCellNum(); j++) {
+            Cell cell = row.getCell(j);
+            
+            // Nếu gặp bất kỳ một ô nào chứa dữ liệu hợp lệ (Không phải là ô trống hoặc ô trắng)
+            if (cell != null && cell.getCellType() != CellType.BLANK) {
+                
+                // Trường hợp ngoại lệ: Ô chứa chuỗi nhưng toàn khoảng trắng (Space)
+                if (cell.getCellType() == CellType.STRING) {
+                    String val = cell.getStringCellValue();
+                    if (val != null && !val.trim().isEmpty()) {
+                        return false; // Sheet CÓ DỮ LIỆU
+                    }
+                } else {
+                    return false; // Nếu là Number, Boolean, Formula... -> Sheet CÓ DỮ LIỆU
+                }
+            }
+        }
+    }
+
+    // Nếu chạy hết vòng lặp mà không tìm thấy ô nào có dữ liệu -> Sheet RỖNG
+    return true; 
+}
 
 
