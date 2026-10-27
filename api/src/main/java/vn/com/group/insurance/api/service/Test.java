@@ -406,3 +406,37 @@ public <T> List<T> parseExcelList(File file, Class<T> clazz, int headerRowIndex)
 }
 
 
+
+import org.apache.poi.ss.util.AreaReference;
+import org.apache.poi.ss.util.CellReference;
+
+/**
+ * Trích xuất Tọa độ giới hạn (Dòng cuối, Cột cuối) từ Print Area của Sheet.
+ * @return Mảng int gồm 2 phần tử: [lastRowIndex, lastColIndex]. Trả về null nếu không set vùng in.
+ */
+private int[] getPrintAreaBoundary(Workbook workbook, Sheet sheet) {
+    int sheetIndex = workbook.getSheetIndex(sheet);
+    
+    // Lấy chuỗi tham chiếu vùng in (Ví dụ: "Sheet1!$A$1:$H$100")
+    String printArea = workbook.getPrintArea(sheetIndex);
+    
+    if (printArea != null && !printArea.trim().isEmpty()) {
+        try {
+            // Excel cho phép set nhiều vùng in cách nhau bằng dấu phẩy. Ta lấy vùng đầu tiên (vùng chính)
+            String firstArea = printArea.contains(",") ? printArea.split(",")[0] : printArea;
+            
+            AreaReference areaRef = new AreaReference(firstArea, workbook.getSpreadsheetVersion());
+            CellReference lastCell = areaRef.getLastCell();
+            
+            // Trả về [Dòng cuối cùng, Cột cuối cùng] (0-based index)
+            return new int[]{ lastCell.getRow(), lastCell.getCol() };
+            
+        } catch (Exception e) {
+            System.err.println("Không thể parse Print Area: " + printArea);
+        }
+    }
+    return null; // Không có Print Area
+}
+
+
+
