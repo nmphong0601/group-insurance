@@ -233,3 +233,176 @@ public class ExcelListMappingService {
     // (Giữ nguyên các hàm phụ trợ: getAllFields, castValue, getCellValueAsObject, getCellValueAsString)
 }
 
+
+
+
+
+
+import org.apache.poi.ss.usermodel.Sheet;
+
+/**
+ * Tìm Index của dòng bị ngắt trang đầu tiên.
+ */
+private int getFirstRowPageBreak(Sheet sheet) {
+    int[] rowBreaks = sheet.getRowBreaks();
+    if (rowBreaks != null && rowBreaks.length > 0) {
+        int firstBreak = rowBreaks[0];
+        for (int i = 1; i < rowBreaks.length; i++) {
+            if (rowBreaks[i] < firstBreak) {
+                firstBreak = rowBreaks[i];
+            }
+        }
+        return firstBreak; // Trả về index của dòng bị ngắt (0-based)
+    }
+    return -1;
+}
+
+/**
+ * Tìm Index của cột bị ngắt trang đầu tiên.
+ */
+private int getFirstColumnPageBreak(Sheet sheet) {
+    int[] colBreaks = sheet.getColumnBreaks();
+    if (colBreaks != null && colBreaks.length > 0) {
+        int firstBreak = colBreaks[0];
+        for (int i = 1; i < colBreaks.length; i++) {
+            if (colBreaks[i] < firstBreak) {
+                firstBreak = colBreaks[i];
+            }
+        }
+        return firstBreak; // Trả về index của cột bị ngắt (0-based)
+    }
+    return -1;
+}
+
+
+
+
+
+public <T> List<T> parseExcelList(File file, Class<T> clazz, int headerRowIndex) throws Exception {
+    List<T> resultList = new ArrayList<>();
+
+    try (Workbook workbook = WorkbookFactory.create(file)) {
+        Sheet sheet = workbook.getSheetAt(0);
+        Row headerRow = sheet.getRow(headerRowIndex);
+        if (headerRow == null) return resultList;
+
+        // ==========================================
+        // KHỞI TẠO TỌA ĐỘ VÙNG LÀM VIỆC (BOUNDARY)
+        // ==========================================
+        // 1. Dòng cuối cùng được phép đọc
+        int lastRowBoundary = sheet.getLastRowNum();
+        int rowPageBreak = getFirstRowPageBreak(sheet);
+        if (rowPageBreak != -1 && rowPageBreak > headerRowIndex) {
+            lastRowBoundary = rowPageBreak;
+            System.out.println("Boundary Dòng: " + lastRowBoundary);
+        }
+
+        // 2. Cột cuối cùng được phép đọc
+        int lastColBoundary = headerRow.getLastCellNum() - 1; // getLastCellNum() trả về độ dài (1-based), trừ 1 ra index
+        int colPageBreak = getFirstColumnPageBreak(sheet);
+        if (colPageBreak != -1) {
+            lastColBoundary = colPageBreak;
+            System.out.println("Boundary Cột: " + lastColBoundary);
+        }
+
+        Map<Integer, Field> columnIndexToFieldMap = new HashMap<>();
+        int primaryColumnIndex = -1; 
+        Field primaryField = null;   
+        List<Field> allFields = getAllFields(clazz);
+        
+        // ==========================================
+        // BƯỚC 1: LẬP BẢN ĐỒ CỘT (CÓ GIỚI HẠN PAGE BREAK)
+        // ==========================================
+        for (Cell cell : headerRow) {
+            // NẾU CỘT NÀY NẰM NGOÀI PAGE BREAK -> BỎ QUA KHÔNG ĐỌC
+            if (cell.getColumnIndex() > lastColBoundary) {
+                continue; 
+            }
+
+            String headerName = getCellValueAsString(cell).trim().toLowerCase();
+            if (headerName.isEmpty()) continue;
+
+            for (Field field : allFields) {
+                if (field.isAnnotationPresent(ExcelProperty.class)) {
+                    ExcelProperty ann = field.getAnnotation(ExcelProperty.class);
+                    for (String kw : ann.value()) {
+                        if (headerName.contains(kw.toLowerCase())) {
+                            field.setAccessible(true);
+                            columnIndexToFieldMap.put(cell.getColumnIndex(), field);
+                            
+                            if (ann.primary()) {
+                                primaryColumnIndex = cell.getColumnIndex();
+                                primaryField = field;
+                            }
+                            break; 
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // BƯỚC 2: QUÉT DỮ LIỆU ĐẾN DÒNG PAGE BREAK
+        // ==========================================
+        for (int rowIndex = headerRowIndex + 1; rowIndex <= lastRowBoundary; rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            
+            // Dòng null có thể là dòng bị ẩn hoặc chưa format, cứ continue
+            if (row == null) continue; 
+
+            // KIỂM TRA PRIMARY COLUMN 
+            if (primaryColumnIndex != -1 && primaryField != null) {
+                Cell primaryCell = row.getCell(primaryColumnIndex);
+                if (primaryCell == null || primaryCell.getCellType() == CellType.BLANK) {
+                    break;
+                }
+                Object rawPrimaryValue = getCellValueAsObject(primaryCell);
+                Object castedPrimary = castValue(primaryField.getType(), rawPrimaryValue, null, primaryField.getName());
+                if (castedPrimary == null || castedPrimary.toString().trim().isEmpty()) {
+                    break;
+                }
+            }
+
+            T instance = clazz.getDeclaredConstructor().newInstance();
+            boolean isRowEmpty = true;
+
+            if (instance instanceof CommonExcelDto) {
+                ((CommonExcelDto) instance).setExcelRowNumber(row.getRowNum() + 1);
+            }
+
+            for (Map.Entry<Integer, Field> entry : columnIndexToFieldMap.entrySet()) {
+                int colIndex = entry.getKey();
+                Field field = entry.getValue();
+                
+                // (Tuỳ chọn thêm) An toàn tuyệt đối: Dù đã chặn ở Header, vẫn kiểm tra lại index khi map
+                if (colIndex > lastColBoundary) continue;
+
+                Cell cell = row.getCell(colIndex);
+
+                // Chặn Formula
+                if (cell != null && cell.getCellType() == CellType.FORMULA) {
+                    if (instance instanceof CommonExcelDto) {
+                        ((CommonExcelDto) instance).addFieldError(field.getName(), "Không được sử dụng công thức.");
+                    }
+                    isRowEmpty = false;
+                    continue;
+                }
+
+                Object cellValue = getCellValueAsObject(cell);
+
+                if (cellValue != null && !cellValue.toString().trim().isEmpty()) {
+                    isRowEmpty = false; 
+                    Object castedValue = castValue(field.getType(), cellValue, instance, field.getName());
+                    field.set(instance, castedValue);
+                }
+            }
+
+            if (!isRowEmpty) {
+                resultList.add(instance);
+            }
+        }
+    }
+    return resultList;
+}
+
+
